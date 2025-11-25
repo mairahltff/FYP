@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Chatly - AI Chatbox</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+  <div class="app">
+    <header class="app-header">
+      <div class="logo">
+        <img src="image/logo.png" alt="Chatly Logo" class="logo-img" />
+      </div>
+      <div class="app-title">CHATLY</div>
+      <div class="app-subtitle">Instant help every time</div>
+    </header>
+
+    <!-- HOME SCREEN -->
+    <main id="screen-home" class="screen active">
+      <div class="home-content">
+
+        <div class="home-circles">
+          <!-- Healthcare -->
+          <div class="circle-group">
+            <button class="topic-circle selected" data-topic="healthcare" type="button">
+              <img
+                src="image/Image2.png"
+                alt="Healthcare icon"
+                class="topic-icon"
+              />
+            </button>
+            <strong class="topic-label">Healthcare</strong>
+          </div>
+
+          <!-- Education -->
+          <div class="circle-group">
+            <button class="topic-circle" data-topic="education" type="button">
+              <img
+                src="image/Image3.png"
+                alt="Education icon"
+                class="topic-icon"
+              />
+            </button>
+            <strong class="topic-label">Education</strong>
+          </div>
+        </div>
+
+        <p class="home-tagline">Instant help, every time.</p>
+        <p class="home-help-text">
+          Choose a topic and start chatting with your AI assistant.
+        </p>
+
+        <button id="btn-start-chat" class="btn-primary" type="button">
+          START CHAT
+        </button>
+      </div>
+    </main>
+
+    <!-- LOADING SCREEN -->
+    <main id="screen-loading" class="screen">
+      <div class="loading-wrapper">
+        <img src="image/Image1.png" alt="Chatly logo" class="loading-logo" />
+
+        <div class="spinner"></div>
+        <p class="loading-text" id="loading-text">loading...</p>
+      </div>
+    </main>
+
+    <!-- HEALTHCARE CHAT -->
+    <main id="screen-healthcare" class="screen">
+      <div class="layout">
+        <aside class="sidebar">
+          <div class="sidebar-header">
+            <div class="logo small">
+              <img src="image/logo.png" class="logo-img" />
+            </div>
+            <div class="sidebar-title">Menu</div>
+          </div>
+
+          <ul class="nav-list">
+            <li class="nav-item" data-target="screen-home"><span>Home</span></li>
+            <li class="nav-item active" data-target="screen-healthcare">
+              <span>Choose Chat</span>
+            </li>
+            <li class="nav-item" data-target="screen-history">
+              <span>Chat History</span>
+            </li>
+            <li class="nav-item" data-target="screen-settings">
+              <span>Settings</span>
+            </li>
+          </ul>
+
+          <div class="user-account">
+            User Account
+            <strong>Guest</strong>
+          </div>
+        </aside>
+
+        <section class="panel">
+          <div class="panel-header">
+            <span>Healthcare</span>
+            <small>Hello! What can I help you with?</small>
+          </div>
+
+          <div id="healthcare-messages" class="chat-body">
+            <div class="message bot">
+              Hi! I can help answer your healthcare questions. Type your question below.
+            </div>
+          </div>
+
+          <form class="chat-input-row" data-chat="healthcare">
+            <input type="text" placeholder="What can I help you with?" autocomplete="off" />
+            <button type="submit">▶</button>
+          </form>
+        </section>
+      </div>
+    </main>
+
+    <!-- EDUCATION CHAT -->
+    <main id="screen-education" class="screen">
+      <div class="layout">
+        <aside class="sidebar">
+          <div class="sidebar-header">
+            <div class="logo small">
+              <img src="image/logo.png" class="logo-img" />
+            </div>
+            <div class="sidebar-title">Menu</div>
+          </div>
+
+          <ul class="nav-list">
+            <li class="nav-item" data-target="screen-home"><span>Home</span></li>
+            <li class="nav-item active" data-target="screen-education">
+              <span>Choose Chat</span>
+            </li>
+            <li class="nav-item" data-target="screen-history">
+              <span>Chat History</span>
+            </li>
+            <li class="nav-item" data-target="screen-settings">
+              <span>Settings</span>
+            </li>
+          </ul>
+
+          <div class="user-account">
+            User Account
+            <strong>Guest</strong>
+          </div>
+        </aside>
+
+        <section class="panel">
+          <div class="panel-header">
+            <span>Education</span>
+            <small>Hello! What can I help you with?</small>
+          </div>
+
+          <div id="education-messages" class="chat-body">
+            <div class="message bot">
+              Hi! Ask me anything about education, homework or learning.
+            </div>
+          </div>
+
+          <form class="chat-input-row" data-chat="education">
+            <input type="text" placeholder="What can I help you with?" autocomplete="off" />
+            <button type="submit">▶</button>
+          </form>
+        </section>
+      </div>
+    </main>
+
+    <!-- CHAT HISTORY -->
+    <main id="screen-history" class="screen">
+      <div class="layout">
+        <aside class="sidebar">
+          <div class="sidebar-header">
+            <div class="logo small">
+              <img src="image/logo.png" class="logo-img" />
+            </div>
+            <div class="sidebar-title">Menu</div>
+          </div>
+
+          <ul class="nav-list">
+            <li class="nav-item" data-target="screen-home"><span>Home</span></li>
+            <li class="nav-item" data-target="screen-healthcare">
+              <span>Choose Chat</span>
+            </li>
+            <li class="nav-item active" data-target="screen-history">
+              <span>Chat History</span>
+            </li>
+            <li class="nav-item" data-target="screen-settings">
+              <span>Settings</span>
+            </li>
+          </ul>
+
+          <div class="user-account">
+            User Account
+            <strong>Guest</strong>
+          </div>
+        </aside>
+
+        <section class="panel">
+          <div class="panel-header">
+            <span>Chat History</span>
+            <small>Previous questions you asked</small>
+          </div>
+          <div id="history-list" class="history-list"></div>
+        </section>
+      </div>
+    </main>
+
+    <!-- SETTINGS -->
+    <main id="screen-settings" class="screen">
+      <div class="layout">
+        <aside class="sidebar">
+          <div class="sidebar-header">
+            <div class="logo small">
+              <img src="image/logo.png" class="logo-img" />
+            </div>
+            <div class="sidebar-title">Menu</div>
+          </div>
+
+          <ul class="nav-list">
+            <li class="nav-item" data-target="screen-home"><span>Home</span></li>
+            <li class="nav-item" data-target="screen-healthcare">
+              <span>Choose Chat</span>
+            </li>
+            <li class="nav-item" data-target="screen-history">
+              <span>Chat History</span>
+            </li>
+            <li class="nav-item active" data-target="screen-settings">
+              <span>Settings</span>
+            </li>
+          </ul>
+
+          <div class="user-account">
+            User Account
+            <strong>Guest</strong>
+          </div>
+        </aside>
+
+        <section class="panel">
+          <div class="panel-header">
+            <span>Settings</span>
+            <small>Adjust your preferences</small>
+          </div>
+
+          <div class="settings-body">
+            <div class="setting-row">
+              <label>
+                Dark Mode
+                <span>Change the overall theme (demo only)</span>
+              </label>
+              <div class="toggle" data-setting="darkmode"></div>
+            </div>
+
+            <div class="setting-row">
+              <label>
+                Notifications
+                <span>Turn alerts on/off</span>
+              </label>
+              <div class="toggle active" data-setting="notifications"></div>
+            </div>
+
+            <div class="setting-row">
+              <label>
+                Save Chat History
+                <span>Keep a record of your questions</span>
+              </label>
+              <div class="toggle active" data-setting="history"></div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
