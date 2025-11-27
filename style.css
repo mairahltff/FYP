@@ -26,6 +26,13 @@ body {
   padding: 24px;
 }
 
+.home-click {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;       /* shows clickable cursor */
+}
+
 /* APP WRAPPER */
 .app {
   width: 100%;
@@ -422,6 +429,15 @@ body {
   display: block;
   font-size: 12px;
   color: #8395a7;
+}
+
+.temp-slider {
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+body.light-mode .temp-slider {
+  accent-color: #1dd1a1;
 }
 
 /* TOGGLES */

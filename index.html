@@ -10,11 +10,15 @@
 <body>
   <div class="app">
     <header class="app-header">
-      <div class="logo">
-        <img src="image/logo.png" alt="Chatly Logo" class="logo-img" />
+      <!-- CLICKABLE HOME BUTTON (logo + title) -->
+      <div id="home-button" class="home-click">
+        <div class="logo">
+          <img src="image/logo.png" alt="Chatly Logo" class="logo-img" />
+        </div>
+        <div class="app-title">CHATLY</div>
       </div>
-      <div class="app-title">CHATLY</div>
-      <div class="app-subtitle">Instant help every time</div>
+
+      <div class="app-subtitle">Instant help, Every time.</div>
     </header>
 
     <!-- HOME SCREEN -->
@@ -39,7 +43,7 @@
           </div>
         </div>
 
-        <p class="home-tagline">Instant help, every time.</p>
+        <p class="home-tagline">Instant help, Every time.</p>
         <p class="home-help-text">
           Choose a topic and start chatting with your AI assistant.
         </p>
@@ -64,7 +68,6 @@
       <div class="layout">
         <aside class="sidebar">
           <div class="sidebar-header">
-            <!-- icon removed -->
             <div class="sidebar-title">Menu</div>
           </div>
 
@@ -87,7 +90,7 @@
 
           <div id="healthcare-messages" class="chat-body">
             <div class="message bot">
-              Hi! I can help answer your healthcare questions. Type your question below.
+              Please enter your medical inquiry.
             </div>
           </div>
 
@@ -104,7 +107,6 @@
       <div class="layout">
         <aside class="sidebar">
           <div class="sidebar-header">
-            <!-- icon removed -->
             <div class="sidebar-title">Menu</div>
           </div>
 
@@ -127,7 +129,7 @@
 
           <div id="education-messages" class="chat-body">
             <div class="message bot">
-              Hi! Ask me anything about education, homework or learning.
+              Please enter your academic question.
             </div>
           </div>
 
@@ -144,7 +146,6 @@
       <div class="layout">
         <aside class="sidebar">
           <div class="sidebar-header">
-            <!-- icon removed -->
             <div class="sidebar-title">Menu</div>
           </div>
 
@@ -175,7 +176,6 @@
       <div class="layout">
         <aside class="sidebar">
           <div class="sidebar-header">
-            <!-- icon removed -->
             <div class="sidebar-title">Menu</div>
           </div>
 
@@ -198,6 +198,7 @@
           </div>
 
           <div class="settings-body">
+            
             <div class="setting-row">
               <label>
                 Dark Mode
@@ -221,6 +222,31 @@
               </label>
               <div class="toggle active" data-setting="history"></div>
             </div>
+
+            <!-- ★ TEMPERATURE SETTING (0–8) WITH LIVE VALUE ★ -->
+            <div class="setting-row">
+              <label>
+                Temperature
+                <span>Controls creativity of AI responses (0 = strict, 8 = very creative)</span>
+              </label>
+
+              <div style="display:flex; flex-direction:column; align-items:center;">
+                <input 
+                  type="range" 
+                  min="0" 
+                  max="8" 
+                  step="1" 
+                  value="4" 
+                  class="temp-slider" 
+                  data-setting="temperature"
+                  style="width:160px;"
+                >
+                <span id="temp-value" style="font-size:12px; margin-top:6px; color:#c8d6e5;">
+                  Value: 4
+                </span>
+              </div>
+            </div>
+
           </div>
         </section>
       </div>

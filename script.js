@@ -2,7 +2,16 @@ document.addEventListener("DOMContentLoaded", () => {
   // ---------- SCREEN SWITCHING ----------
   const screens = document.querySelectorAll(".screen");
 
+  // track which chat screen was last active
+  let lastChatScreen = "screen-healthcare";
+  let selectedTopic = "healthcare";
+
   function showScreen(id) {
+    // remember last chat screen
+    if (id === "screen-healthcare" || id === "screen-education") {
+      lastChatScreen = id;
+    }
+
     screens.forEach((s) => s.classList.toggle("active", s.id === id));
 
     // highlight nav items
@@ -14,17 +23,30 @@ document.addEventListener("DOMContentLoaded", () => {
 
   document.querySelectorAll(".nav-item").forEach((item) => {
     item.addEventListener("click", () => {
-      const target = item.dataset.target;
+      let target = item.dataset.target;
+      const label = item.textContent.trim();
+
+      // If the nav item is "Your Chat", go back to whichever chat was last used
+      if (label === "Your Chat") {
+        target = lastChatScreen;
+      }
+
       if (target) showScreen(target);
     });
   });
 
-  // ---------- TOPIC SELECTION ----------
-  let selectedTopic = "healthcare";
+  // ---------- CLICK LOGO/TITLE TO GO HOME ----------
+  const homeBtn = document.getElementById("home-button");
+  if (homeBtn) {
+    homeBtn.addEventListener("click", () => {
+      showScreen("screen-home");
+    });
+  }
 
+  // ---------- TOPIC SELECTION ----------
   document.querySelectorAll(".topic-circle").forEach((btn) => {
     btn.addEventListener("click", () => {
-      selectedTopic = btn.dataset.topic;
+      selectedTopic = btn.dataset.topic || "healthcare";
       document.querySelectorAll(".topic-circle").forEach((b) =>
         b.classList.remove("selected")
       );
@@ -134,6 +156,37 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   refreshHistory();
+
+  // ---------- TEMPERATURE SLIDER (0–8) + LIVE VALUE + LABEL ----------
+  const tempSlider = document.querySelector('[data-setting="temperature"]');
+  const tempValue = document.getElementById("temp-value");
+
+  function getTempLabel(value) {
+    value = Number(value);
+
+    if (value <= 1) return "Strict";
+    if (value <= 3) return "Safe";
+    if (value === 4) return "Balanced";
+    if (value <= 6) return "Creative";
+    return "Very Creative";
+  }
+
+  if (tempSlider && tempValue) {
+    const savedTemp = localStorage.getItem("chatly-temperature");
+
+    // Load saved temperature or fallback to slider's default
+    const initialValue = savedTemp !== null ? savedTemp : tempSlider.value;
+    tempSlider.value = initialValue;
+    tempValue.textContent = `Value: ${initialValue} — ${getTempLabel(initialValue)}`;
+
+    // Update text + save when user moves the slider
+    tempSlider.addEventListener("input", () => {
+      const val = tempSlider.value;
+      tempValue.textContent = `Value: ${val} — ${getTempLabel(val)}`;
+      localStorage.setItem("chatly-temperature", val);
+      console.log("Temperature set to:", val);
+    });
+  }
 
   // ---------- DARK MODE TOGGLE (light/dark theme switch) ----------
   const darkToggle = document.querySelector('[data-setting="darkmode"]');
