@@ -8,6 +8,107 @@
 </head>
 
 <body>
+  <!-- AUTH MODAL -->
+  <div id="auth-modal" class="auth-modal active">
+    <div class="auth-container">
+      <div class="auth-header">
+        <img src="image/logo.png" alt="Chatly Logo" class="auth-logo" />
+        <h2>Welcome to Chatly</h2>
+      </div>
+
+      <div id="auth-content" class="auth-content">
+        <!-- Login Tab -->
+        <div id="login-form" class="auth-form active">
+          <h3>Sign In</h3>
+          <input 
+            type="email" 
+            id="login-email" 
+            placeholder="Email" 
+            class="auth-input"
+            required
+          />
+          <input 
+            type="password" 
+            id="login-password" 
+            placeholder="Password" 
+            class="auth-input"
+            required
+          />
+          <button id="login-btn" class="btn-primary" style="width:100%; margin-top:10px;">
+            Sign In
+          </button>
+          <p class="auth-toggle">
+            No account? <a href="#" onclick="switchAuthForm()">Create one</a>
+          </p>
+          <div id="login-error" class="auth-error"></div>
+        </div>
+
+        <!-- Signup Tab -->
+        <div id="signup-form" class="auth-form">
+          <h3>Create Account</h3>
+          <input 
+            type="text" 
+            id="signup-name" 
+            placeholder="Full Name" 
+            class="auth-input"
+            required
+          />
+          <input 
+            type="email" 
+            id="signup-email" 
+            placeholder="Email" 
+            class="auth-input"
+            required
+          />
+          <input 
+            type="password" 
+            id="signup-password" 
+            placeholder="Password" 
+            class="auth-input"
+            required
+          />
+          
+          <!-- Password Requirements Display -->
+          <div class="password-requirements">
+            <p class="requirements-title">Password must have:</p>
+            <div class="requirement-item" id="req-length">
+              <span class="requirement-icon">✓</span>
+              <span>At least 8 characters</span>
+            </div>
+            <div class="requirement-item" id="req-uppercase">
+              <span class="requirement-icon">✓</span>
+              <span>1 uppercase letter (A-Z)</span>
+            </div>
+            <div class="requirement-item" id="req-lowercase">
+              <span class="requirement-icon">✓</span>
+              <span>1 lowercase letter (a-z)</span>
+            </div>
+            <div class="requirement-item" id="req-number">
+              <span class="requirement-icon">✓</span>
+              <span>1 numeric number (0-9)</span>
+            </div>
+          </div>
+          <button id="signup-btn" class="btn-primary" style="width:100%; margin-top:10px;">
+            Create Account
+          </button>
+          <p class="auth-toggle">
+            Already have an account? <a href="#" onclick="switchAuthForm()">Sign In</a>
+          </p>
+          <div id="signup-error" class="auth-error"></div>
+        </div>
+
+        <!-- Google Sign-In -->
+        <button id="google-signin-btn" class="btn-google" style="display:none;">
+          <span>Sign in with Google</span>
+        </button>
+      </div>
+
+      <div class="auth-footer">
+        <small>Your data is secure and encrypted</small>
+      </div>
+    </div>
+  </div>
+
   <div class="app">
     <header class="app-header">
       <!-- CLICKABLE HOME BUTTON (logo + title) -->
@@ -79,7 +180,8 @@
           </ul>
 
           <div class="user-account">
-            User Account <strong>Guest</strong>
+            <span id="user-display-name">Guest</span>
+            <button id="logout-btn" class="logout-link" style="display:none; margin-left:10px;">Sign Out</button>
           </div>
         </aside>
 
@@ -118,7 +220,8 @@
           </ul>
 
           <div class="user-account">
-            User Account <strong>Guest</strong>
+            <span id="user-display-name-edu">Guest</span>
+            <button id="logout-btn-edu" class="logout-link" style="display:none; margin-left:10px;">Sign Out</button>
           </div>
         </aside>
 
@@ -157,7 +260,8 @@
           </ul>
 
           <div class="user-account">
-            User Account <strong>Guest</strong>
+            <span id="user-display-name-hist">Guest</span>
+            <button id="logout-btn-hist" class="logout-link" style="display:none; margin-left:10px;">Sign Out</button>
           </div>
         </aside>
 
@@ -187,7 +291,8 @@
           </ul>
 
           <div class="user-account">
-            User Account <strong>Guest</strong>
+            <span id="user-display-name-set">Guest</span>
+            <button id="logout-btn-set" class="logout-link" style="display:none; margin-left:10px;">Sign Out</button>
           </div>
         </aside>
 
@@ -254,6 +359,13 @@
 
   </div>
 
+  <!-- Firebase Config (must load first with type="module") -->
+  <script type="module" src="firebase-config.js"></script>
+  
+  <!-- Firebase Auth Handler (must load with type="module") -->
+  <script type="module" src="firebase-auth.js"></script>
+  
+  <!-- Main App Script -->
   <script src="script.js"></script>
 </body>
 </html>
