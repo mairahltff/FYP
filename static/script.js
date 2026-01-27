@@ -1,4 +1,30 @@
 document.addEventListener("DOMContentLoaded", () => {
+  // ---------- SIGNUP PASSWORD MATCH VALIDATION ----------
+  const signupForm = document.getElementById('signup-form');
+  if (signupForm) {
+    const signupBtn = document.getElementById('signup-btn');
+    const passwordInput = document.getElementById('signup-password');
+    const confirmInput = document.getElementById('signup-confirm-password');
+    const errorDiv = document.getElementById('signup-error');
+    if (signupBtn && passwordInput && confirmInput && errorDiv) {
+      signupBtn.addEventListener('click', function(e) {
+        if (passwordInput.value !== confirmInput.value) {
+          e.preventDefault();
+          errorDiv.textContent = 'Passwords do not match.';
+          confirmInput.classList.add('input-error');
+        } else {
+          errorDiv.textContent = '';
+          confirmInput.classList.remove('input-error');
+        }
+      });
+      confirmInput.addEventListener('input', function() {
+        if (passwordInput.value === confirmInput.value) {
+          errorDiv.textContent = '';
+          confirmInput.classList.remove('input-error');
+        }
+      });
+    }
+  }
   // ---------- SCREEN SWITCHING ----------
   const screens = document.querySelectorAll(".screen");
 
@@ -353,4 +379,12 @@ document.addEventListener("DOMContentLoaded", () => {
       applyTheme(willBeLight);
     });
   }
+
+  // ---------- PASSWORD TOGGLE FUNCTION ----------
+  window.togglePassword = function(inputId) {
+    const input = document.getElementById(inputId);
+    if (input) {
+      input.type = input.type === 'password' ? 'text' : 'password';
+    }
+  };
 });

@@ -84,21 +84,21 @@ In the Firebase Console:
 
 ## Features Implemented
 
-✅ **Email/Password Authentication**
+**Email/Password Authentication**
 - Sign up with email and password
 - Sign in with existing credentials
 - Password validation (minimum 6 characters)
 
-✅ **Google Sign-In**
+**Google Sign-In**
 - One-click Google authentication
 - Automatic profile retrieval
 
-✅ **User Session Management**
+**User Session Management**
 - Persistent login (survives page refresh)
 - Automatic logout
 - Display user name in app
 
-✅ **Error Handling**
+**Error Handling**
 - User-friendly error messages
 - Form validation
 
@@ -131,7 +131,7 @@ In the Firebase Console:
 
 ## Security Notes
 
-⚠️ **Important Security Considerations:**
+**Important Security Considerations:**
 
 1. **API Key Exposure**: Your Firebase API key is visible in the client-side code. This is expected behavior - Firebase uses security rules to protect data.
 

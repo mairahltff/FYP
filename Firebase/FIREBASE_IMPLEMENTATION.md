@@ -65,24 +65,24 @@ User name ↓
 
 ## Key Features
 
-### ✅ Email/Password Authentication
+###  Email/Password Authentication
 - Create new account with name, email, password
 - Sign in with email and password
 - Password validation (6+ characters)
 - Error handling with user feedback
 
-### ✅ Google Sign-In
+###  Google Sign-In
 - One-click authentication
 - Automatic profile data retrieval
 - Secure popup-based flow
 
-### ✅ Session Management
+###  Session Management
 - Persistent login across page refreshes
 - Automatic user status monitoring
 - Single logout button in sidebar
 - User name displayed in all screens
 
-### ✅ User Experience
+###  User Experience
 - Beautiful, modern auth modal
 - Smooth animations
 - Mobile responsive

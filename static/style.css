@@ -663,8 +663,50 @@ body.light-mode .app-subtitle {
   box-shadow: 0 0 0 3px rgba(29, 209, 161, 0.1);
 }
 
+/* Input wrapper for inline icons */
+.input-container {
+  position: relative;
+}
+
+/* Make room for the eye icon inside the input */
+.input-container .auth-input {
+  padding-right: 44px;
+}
+
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+}
+
+.password-toggle svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+  fill: currentColor;
+}
+
+.password-toggle:hover {
+  color: var(--accent);
+}
+
 .auth-input::placeholder {
   color: var(--muted);
+}
+
+/* Error highlight for confirm password */
+.input-error {
+  border-color: #e74c3c !important;
+  box-shadow: 0 0 0 2px rgba(231, 76, 60, 0.2);
 }
 
 .auth-error {
@@ -863,5 +905,6 @@ body.light-mode .app-subtitle {
  @ k e y f r a m e s   s p i n   { 
      0 %   {   t r a n s f o r m :   r o t a t e ( 0 d e g ) ;   } 
      1 0 0 %   {   t r a n s f o r m :   r o t a t e ( 3 6 0 d e g ) ;   } 
- }  
+ } 
+ 
  
