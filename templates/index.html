@@ -4,367 +4,173 @@
   <meta charset="UTF-8" />
   <title>Chatly - AI Chatbox</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=20260129" />
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='image/logo.png') }}" />
 </head>
 
 <body>
-  <!-- AUTH MODAL -->
-  <div id="auth-modal" class="auth-modal active">
-    <div class="auth-container">
-      <div class="auth-header">
-        <img src="/static/image/logo.png" alt="Chatly Logo" class="auth-logo" />
-        <h2>Welcome to Chatly</h2>
-      </div>
 
-      <div id="auth-content" class="auth-content">
-        <!-- Login Tab -->
-        <div id="login-form" class="auth-form active">
-          <h3>Sign In</h3>
-          <input 
-            type="email" 
-            id="login-email" 
-            placeholder="Email" 
-            class="auth-input"
-            required
-          />
-          <div class="input-container">
-            <input 
-              type="password" 
-              id="login-password" 
-              placeholder="Password" 
-              class="auth-input"
-              required
-            />
-            <button type="button" class="password-toggle" onclick="togglePassword('login-password')" title="Toggle password visibility">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                <path d="M12 5c-7 0-11 7-11 7s4 7 11 7 11-7 11-7-4-7-11-7z" fill="currentColor"/>
-                <path d="M12 9.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z" fill="currentColor"/>
-              </svg>
-            </button>
-          </div>
-          <button id="login-btn" class="btn-primary" style="width:100%; margin-top:10px;">
-            Sign In
-          </button>
-          <p class="auth-toggle">
-            No account? <a href="#" onclick="event.preventDefault(); window.switchAuthForm();">Create one</a>
-          </p>
-          <div id="login-error" class="auth-error"></div>
-        </div>
-
-        <!-- Signup Tab -->
-        <div id="signup-form" class="auth-form">
-          <h3>Create Account</h3>
-          <input 
-            type="text" 
-            id="signup-name" 
-            placeholder="Full Name" 
-            class="auth-input"
-            required
-          />
-          <input 
-            type="email" 
-            id="signup-email" 
-            placeholder="Email" 
-            class="auth-input"
-            required
-          />
-          <div class="input-container">
-            <input 
-              type="password" 
-              id="signup-password" 
-              placeholder="Password" 
-              class="auth-input"
-              required
-            />
-            <button type="button" class="password-toggle" onclick="togglePassword('signup-password')" title="Toggle password visibility">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                <path d="M12 5c-7 0-11 7-11 7s4 7 11 7 11-7 11-7-4-7-11-7z" fill="currentColor"/>
-                <path d="M12 9.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z" fill="currentColor"/>
-              </svg>
-            </button>
-          </div>
-          <div class="input-container">
-            <input 
-              type="password" 
-              id="signup-confirm-password" 
-              placeholder="Confirm Password" 
-              class="auth-input"
-              required
-            />
-            <button type="button" class="password-toggle" onclick="togglePassword('signup-confirm-password')" title="Toggle password visibility">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                <path d="M12 5c-7 0-11 7-11 7s4 7 11 7 11-7 11-7-4-7-11-7z" fill="currentColor"/>
-                <path d="M12 9.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z" fill="currentColor"/>
-              </svg>
-            </button>
-          </div>
-          <!-- Password Requirements Display -->
-          <div class="password-requirements">
-            <p class="requirements-title">Password must have:</p>
-            <div class="requirement-item" id="req-length">
-              <span class="requirement-icon">✓</span>
-              <span>At least 8 characters</span>
-            </div>
-            <div class="requirement-item" id="req-uppercase">
-              <span class="requirement-icon">✓</span>
-              <span>1 uppercase letter (A-Z)</span>
-            </div>
-            <div class="requirement-item" id="req-lowercase">
-              <span class="requirement-icon">✓</span>
-              <span>1 lowercase letter (a-z)</span>
-            </div>
-            <div class="requirement-item" id="req-number">
-              <span class="requirement-icon">✓</span>
-              <span>1 numeric number (0-9)</span>
-            </div>
-          </div>
-          <button id="signup-btn" class="btn-primary" style="width:100%; margin-top:10px;">
-            Create Account
-          </button>
-          <p class="auth-toggle">
-            Already have an account? <a href="#" onclick="event.preventDefault(); window.switchAuthForm();">Sign In</a>
-          </p>
-          <div id="signup-error" class="auth-error"></div>
-        </div>
-
-        <!-- Google Sign-In -->
-        <button id="google-signin-btn" class="btn-google" style="display:none;">
-          <span>Sign in with Google</span>
-        </button>
-      </div>
-
-      <div class="auth-footer">
-        <small>Your data is secure and encrypted</small>
-      </div>
+<!-- AUTH MODAL -->
+<div id="auth-modal" class="auth-modal active">
+  <div class="auth-container">
+    <div class="auth-header">
+      <img src="{{ url_for('static', filename='image/logo.png') }}" class="auth-logo" />
+      <h2>Welcome to Chatly</h2>
     </div>
-  </div>
 
-  <div class="app">
-    <header class="app-header">
-      <!-- CLICKABLE HOME BUTTON (logo + title) -->
-      <div id="home-button" class="home-click">
-        <div class="logo">
-          <img src="/static/image/logo.png" alt="Chatly Logo" class="logo-img" />
-        </div>
-        <div class="app-title">CHATLY</div>
-      </div>
+    <div class="auth-content">
 
-      <div class="app-subtitle">Instant help, Every time.</div>
-    </header>
+      <!-- LOGIN -->
+      <form id="login-form" class="auth-form active" autocomplete="off" novalidate>
+        <h3>Sign In</h3>
 
-    <!-- HOME SCREEN -->
-    <main id="screen-home" class="screen active">
-      <div class="home-content">
+        <input id="login-email" type="email" class="auth-input" placeholder="Email" required autocomplete="off" autocapitalize="none" spellcheck="false" />
 
-        <div class="home-circles">
-          <!-- Healthcare -->
-          <div class="circle-group">
-            <div class="topic-circle selected">
-              <img src="/static/image/logo.png" alt="Chatly Logo" class="topic-icon" />
-            </div>
-          </div>
+        <div class="input-container">
+          <input id="login-password" type="password" class="auth-input" placeholder="Password" required autocomplete="new-password" autocapitalize="none" spellcheck="false" />
+          <button type="button" class="password-toggle" onclick="togglePassword('login-password')">👁</button>
         </div>
 
-        <p class="home-tagline">Instant help, Every time.</p>
-        <p class="home-help-text">
-          Choose a topic and start chatting with your AI assistant.
+        <button id="login-btn" class="btn-primary" type="submit">Sign In</button>
+
+        <p class="auth-toggle">
+          No account?
+          <a href="#" onclick="event.preventDefault(); showSignupForm();">Create one</a>
         </p>
 
-        <button id="btn-start-chat" class="btn-primary" type="button">
-          START CHAT
-        </button>
+        <div id="login-error" class="auth-error"></div>
+      </form>
+
+      <!-- SIGNUP -->
+      <div id="signup-form" class="auth-form" autocomplete="off" novalidate>
+        <h3>Create Account</h3>
+
+        <input id="signup-name" class="auth-input" placeholder="Full Name" required autocomplete="off" autocapitalize="none" spellcheck="false" />
+        <input id="signup-email" class="auth-input" type="email" placeholder="Email" required autocomplete="off" autocapitalize="none" spellcheck="false" />
+
+        <div class="input-container">
+          <input id="signup-password" type="password" class="auth-input" placeholder="Password" required autocomplete="new-password" autocapitalize="none" spellcheck="false" />
+          <button type="button" class="password-toggle" onclick="togglePassword('signup-password')">👁</button>
+        </div>
+
+        <div class="input-container">
+          <input id="signup-confirm-password" type="password" class="auth-input" placeholder="Confirm Password" required autocomplete="new-password" autocapitalize="none" spellcheck="false" />
+          <button type="button" class="password-toggle" onclick="togglePassword('signup-confirm-password')">👁</button>
+        </div>
+
+        <!-- PASSWORD RULES -->
+        <div class="password-requirements">
+          <p>Password must have:</p>
+          <div id="req-length" class="requirement-item">✔ 8 characters</div>
+          <div id="req-uppercase" class="requirement-item">✔ Uppercase</div>
+          <div id="req-lowercase" class="requirement-item">✔ Lowercase</div>
+          <div id="req-number" class="requirement-item">✔ Number</div>
+        </div>
+
+        <button id="signup-btn" class="btn-primary">Create Account</button>
+
+        <p class="auth-toggle">
+          Already have an account?
+          <a href="#" onclick="event.preventDefault(); showLoginForm();">Sign In</a>
+        </p>
+
+        <div id="signup-error" class="auth-error"></div>
       </div>
-    </main>
 
-    <!-- LOADING SCREEN -->
-    <main id="screen-loading" class="screen">
-      <div class="loading-wrapper">
-        <img src="/static/image/Image1.png" alt="Chatly logo" class="loading-logo" />
-        <div class="spinner"></div>
-        <p class="loading-text" id="loading-text">loading...</p>
-      </div>
-    </main>
+    </div>
+  </div>
+</div>
 
-    <!-- HEALTHCARE CHAT -->
-    <main id="screen-healthcare" class="screen">
-      <div class="layout">
-        <aside class="sidebar">
-          <div class="sidebar-header">
-            <div class="sidebar-title">Menu</div>
-          </div>
-
-          <ul class="nav-list">
-            <li class="nav-item" data-target="screen-home"><span>Home</span></li>
-            <li class="nav-item active" data-target="screen-healthcare"><span>Your Chat</span></li>
-            <li class="nav-item" data-target="screen-history"><span>Chat History</span></li>
-            <li class="nav-item" data-target="screen-settings"><span>Settings</span></li>
-          </ul>
-
-          <div class="user-account">
-            <span id="user-display-name">Guest</span>
-            <button id="logout-btn" class="logout-link" style="display:none; margin-left:10px;">Sign Out</button>
-          </div>
-        </aside>
-
-        <section class="panel">
-          <div class="panel-header">
-            <span>Chat with Chatly</span>
-          </div>
-
-          <div id="healthcare-messages" class="chat-body">
-            <div class="message bot">
-              Upload a document first, then ask your questions.
-            </div>
-          </div>
-
-          <form class="chat-input-row" data-chat="healthcare" enctype="multipart/form-data">
-            <input type="file" id="file-upload" name="file" accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg" style="display: none;" onchange="this.form.dispatchEvent(new Event('submit'))" />
-            <button type="button" onclick="document.getElementById('file-upload').click()" class="upload-btn">+</button>
-            <input type="text" placeholder="What can I help you with?" autocomplete="off" />
-            <button type="submit">▶</button>
-          </form>
-        </section>
-      </div>
-    </main>
-
-    <!-- EDUCATION CHAT -->
-    <main id="screen-education" class="screen">
-      <div class="layout">
-        <aside class="sidebar">
-          <div class="sidebar-header">
-            <div class="sidebar-title">Menu</div>
-          </div>
-
-          <ul class="nav-list">
-            <li class="nav-item" data-target="screen-home"><span>Home</span></li>
-            <li class="nav-item active" data-target="screen-education"><span>Your Chat</span></li>
-            <li class="nav-item" data-target="screen-history"><span>Chat History</span></li>
-            <li class="nav-item" data-target="screen-settings"><span>Settings</span></li>
-          </ul>
-
-          <div class="user-account">
-            <span id="user-display-name-edu">Guest</span>
-            <button id="logout-btn-edu" class="logout-link" style="display:none; margin-left:10px;">Sign Out</button>
-          </div>
-        </aside>
-
-        <section class="panel">
-          <div class="panel-header">
-            <span>Education &#x1F4DA;</span>
-          </div>
-
-          <div id="education-messages" class="chat-body">
-            <div class="message bot">
-              Please enter your academic question.
-            </div>
-          </div>
-
-          <form class="chat-input-row" data-chat="education">
-            <input type="text" placeholder="What can I help you with?" autocomplete="off" />
-            <button type="submit">▶</button>
-          </form>
-        </section>
-      </div>
-    </main>
-
-    <!-- CHAT HISTORY -->
-    <main id="screen-history" class="screen">
-      <div class="layout">
-        <aside class="sidebar">
-          <div class="sidebar-header">
-            <div class="sidebar-title">Menu</div>
-          </div>
-
-          <ul class="nav-list">
-            <li class="nav-item" data-target="screen-home"><span>Home</span></li>
-            <li class="nav-item" data-target="screen-healthcare"><span>Your Chat</span></li>
-            <li class="nav-item active" data-target="screen-history"><span>Chat History</span></li>
-            <li class="nav-item" data-target="screen-settings"><span>Settings</span></li>
-          </ul>
-
-          <div class="user-account">
-            <span id="user-display-name-hist">Guest</span>
-            <button id="logout-btn-hist" class="logout-link" style="display:none; margin-left:10px;">Sign Out</button>
-          </div>
-        </aside>
-
-        <section class="panel">
-          <div class="panel-header">
-            <span>Chat History</span>
-            <small>Previous questions you asked</small>
-          </div>
-          <div id="history-list" class="history-list"></div>
-        </section>
-      </div>
-    </main>
-
-    <!-- SETTINGS -->
-    <main id="screen-settings" class="screen">
-      <div class="layout">
-        <aside class="sidebar">
-          <div class="sidebar-header">
-            <div class="sidebar-title">Menu</div>
-          </div>
-
-          <ul class="nav-list">
-            <li class="nav-item" data-target="screen-home"><span>Home</span></li>
-            <li class="nav-item" data-target="screen-healthcare"><span>Your Chat</span></li>
-            <li class="nav-item" data-target="screen-history"><span>Chat History</span></li>
-            <li class="nav-item active" data-target="screen-settings"><span>Settings</span></li>
-          </ul>
-
-          <div class="user-account">
-            <span id="user-display-name-set">Guest</span>
-            <button id="logout-btn-set" class="logout-link" style="display:none; margin-left:10px;">Sign Out</button>
-          </div>
-        </aside>
-
-        <section class="panel">
-          <div class="panel-header">
-            <span>Settings</span>
-            <small>Adjust your preferences</small>
-          </div>
-
-          <div class="settings-body">
-            
-            <div class="setting-row">
-              <label>
-                Dark Mode
-                <span>Change the overall theme (demo only)</span>
-              </label>
-              <div class="toggle" data-setting="darkmode"></div>
-            </div>
-
-            <div class="setting-row">
-              <label>
-                Notifications
-                <span>Turn alerts on/off</span>
-              </label>
-              <div class="toggle active" data-setting="notifications"></div>
-            </div>
-
-            <div class="setting-row">
-              <label>
-                Save Chat History
-                <span>Keep a record of your questions</span>
-              </label>
-              <div class="toggle active" data-setting="history"></div>
-            </div>
-
-          </div>
-        </section>
-      </div>
-    </main>
-
+<!-- APP (hidden behind auth) -->
+<div class="app">
+  <!-- App Header -->
+  <div class="app-header home-click" id="home-button">
+    <div class="logo">
+      <img src="{{ url_for('static', filename='image/logo.png') }}" class="logo-img" alt="Chatly" />
+    </div>
+    <div class="app-title">CHATLY</div>
+    <div class="app-subtitle">Instant help, Every time.</div>
   </div>
 
-  <!-- Firebase Config (must load first with type="module") -->
-  <script type="module" src="/Firebase/firebase-config.js"></script>
-  
-  <!-- Firebase Auth Handler (must load with type="module") -->
-  <script type="module" src="/Firebase/firebase-auth.js"></script>
-  
-  <!-- Main App Script -->
-  <script src="/static/script.js"></script>
+  <!-- Main Layout -->
+  <div class="layout">
+    <!-- Sidebar (flat background) with inner menu card -->
+    <aside class="sidebar">
+      <div class="menu-card">
+        <div class="sidebar-header">
+          <div class="sidebar-title">Menu</div>
+        </div>
+        <ul class="nav-list">
+          <li class="nav-item active" data-target="screen-healthcare">Your Chat</li>
+          <li class="nav-item" data-target="screen-history">Chat History</li>
+        </ul>
+        <div class="user-account">
+          <div id="sidebar-user-email" class="user-email">Signed in securely</div>
+          <button id="sidebar-logout" class="logout-link" type="button">Log out</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Screens -->
+    <main>
+      <!-- Home -->
+      <section id="screen-home" class="screen active">
+        <div class="home-content">
+          <div class="home-circles">
+            <div class="circle-group">
+              <div class="topic-circle selected">
+                <img src="{{ url_for('static', filename='image/logo.png') }}" class="topic-icon" alt="Topic" />
+              </div>
+              <div class="topic-label">Welcome</div>
+            </div>
+          </div>
+          <div class="home-tagline">Get started by opening a chat</div>
+          <div class="home-help-text">Upload a document and ask questions</div>
+          <button id="btn-start-chat" class="btn-primary">Start Chat</button>
+        </div>
+      </section>
+
+      <!-- Healthcare Chat / Your Chat -->
+      <section id="screen-healthcare" class="screen">
+        <div class="panel">
+          <div class="panel-header">Chat with Chatly <small>Ask using your uploaded docs</small></div>
+          <div id="healthcare-messages" class="chat-body"></div>
+          <form class="chat-input-row" data-chat="healthcare">
+            <button type="button" class="upload-btn" aria-label="Upload">+</button>
+            <input type="file" id="file-healthcare" accept=".pdf,.doc,.docx,.txt" style="display:none" />
+            <input type="text" placeholder="What can I help you with?" autocomplete="off" autocapitalize="none" spellcheck="false" />
+            <button type="submit">▶</button>
+          </form>
+        </div>
+      </section>
+
+
+      <!-- History -->
+      <section id="screen-history" class="screen">
+        <div class="panel">
+          <div class="panel-header history-header">
+            <span>Chat History</span>
+            <div class="history-actions">
+              <button id="history-clear" class="icon-btn" title="Delete all">
+                🗑
+              </button>
+            </div>
+          </div>
+          <div class="history-list">
+            <div class="history-empty">No history yet.</div>
+          </div>
+        </div>
+      </section>
+
+      
+    </main>
+  </div>
+</div>
+
+<!-- SCRIPTS -->
+<script type="module" src="{{ url_for('static', filename='firebase-config.js') }}?v=20260129"></script>
+<script type="module" src="{{ url_for('static', filename='firebase-auth.js') }}?v=20260129"></script>
+<script src="{{ url_for('static', filename='script.js') }}?v=20260129"></script>
+
 </body>
 </html>

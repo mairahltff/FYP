@@ -6,6 +6,13 @@
   --border: #192a56;
   --muted: #7f8c8d;
   --card-bg: #10233b;
+  --card-dark: #071321; /* unified dark card background */
+  /* Sidebar palette (muted teal/blue) */
+  --menu-bg: #0a1e33;
+  --menu-border: #0e2238; /* softer */
+  --menu-hover: #122a44;  /* subtle hover */
+  --menu-active-bg: #17364f; /* muted teal/blue */
+  --menu-active-fg: #7bd6c8; /* soft teal text */
 }
 
 * {
@@ -36,7 +43,7 @@ body {
 /* APP WRAPPER */
 .app {
   width: 100%;
-  max-width: 1100px;
+  max-width: 1200px;
   background: #071321;
   border-radius: 16px;
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
@@ -96,7 +103,7 @@ body {
 .screen {
   display: none;
   padding: 24px;
-  background: #0b1f35;
+  background: transparent;
 }
 
 .screen.active {
@@ -104,14 +111,22 @@ body {
 }
 
 /* HOME SCREEN */
+/* Home screen overrides to look like a standalone hero card */
+#screen-home {
+  background: var(--card-dark); /* match app/panel dark, not lighter canvas */
+}
+
 .home-content {
-  max-width: 600px;
-  margin: 0 auto;
+  /* Fill the main column like the chat panel, with 24px outer gutters from main */
+  width: 100%;
+  max-width: none;
+  margin: 24px 0 0 0;
   background: var(--card-bg);
-  padding: 32px 24px;
-  border-radius: 12px;
+  padding: 56px 44px;
+  border-radius: 18px;
   border: 1px solid var(--border);
   text-align: center;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
 }
 
 .home-circles {
@@ -138,8 +153,8 @@ body {
 }
 
 .topic-circle {
-  width: 130px;
-  height: 130px;
+  width: 180px;
+  height: 180px;
   border-radius: 50%;
   border: 2px solid var(--border);
   background: #071321;
@@ -175,8 +190,8 @@ body {
 }
 
 .home-tagline {
-  font-size: 18px;
-  margin-bottom: 4px;
+  font-size: 20px;
+  margin-bottom: 6px;
 }
 
 .home-help-text {
@@ -188,7 +203,7 @@ body {
 .btn-primary {
   background: var(--accent);
   border: none;
-  padding: 10px 22px;
+  padding: 12px 26px;
   color: #071321;
   border-radius: 999px;
   font-weight: 700;
@@ -196,9 +211,19 @@ body {
   box-shadow: 0 4px 12px rgba(29, 209, 161, 0.5);
 }
 
+#signup-btn {
+  display: block;
+  margin: 14px auto; /* center horizontally */
+}
+
+#login-btn {
+  display: block;
+  margin: 14px auto; /* center horizontally */
+}
+
 .upload-btn {
-  width: 30px;
-  height: 30px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   background: var(--accent);
   border: none;
@@ -210,6 +235,7 @@ body {
   align-items: center;
   margin-right: 10px;
   box-shadow: 0 2px 6px rgba(29, 209, 161, 0.5);
+  font-size: 20px;
 }
 
 /* LOADING SCREEN */
@@ -254,6 +280,15 @@ body {
   margin-top: 6px;
 }
 
+.spinner.inline {
+  width: 14px;
+  height: 14px;
+  border-width: 2px;
+  margin: 0 6px 0 0;
+  display: inline-block;
+  vertical-align: middle;
+}
+
 .loading-text {
   font-size: 13px;
   color: #c8d6e5;
@@ -266,36 +301,86 @@ body {
   }
 }
 
+/* SHARED CANVAS (light blue behind sidebar + chat) */
+
 /* LAYOUT */
 .layout {
   display: grid;
-  grid-template-columns: 220px 1fr;
-  gap: 16px;
+  grid-template-columns: 260px 1fr;  /* slightly wider sidebar */
+  gap: 0;                           /* ✅ REMOVE inter-column gap */
+  align-items: stretch;
+}
+
+/* When Home is active, hide sidebar and use a single column */
+.app.home-only .layout {
+  grid-template-columns: 1fr;
+}
+.app.home-only .sidebar {
+  display: none;
+}
+.app.home-only main {
+  padding: 0; /* screen provides its own padding */
+}
+.app.home-only main .screen {
+  background: var(--card-dark);
+}
+.app.home-only .home-content {
+  max-width: 980px;
+  width: 100%;
+  margin: 36px auto;
+}
+
+/* Remove any default padding on main column to eliminate inter-card gap */
+.layout main {
+  padding: 0;
+}
+.layout main .screen {
+  padding: 24px; /* restore inner padding for main screens */
+  background: var(--menu-bg); /* unify lighter blue behind chat card */
+}
+
+/* But keep Home on dark to avoid appearing inside a panel */
+.layout main #screen-home {
+  background: var(--card-dark);
 }
 
 /* SIDEBAR */
 .sidebar {
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 16px 12px;
-  background: #071321;
-  display: flex;
-  flex-direction: column;
+  background: var(--menu-bg); /* lighter blue behind menu card */
+  padding: 24px 0 24px 24px;  /* equalize spacing: left 24, right 0 */
+  display: flex;              /* no centering; let card fill */
 }
 
-.sidebar-header {
+
+/* Inner menu card that matches chat card styling */
+.menu-card {
+  background: var(--card-dark);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 22px;
+
   display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 20px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border);
+  flex-direction: column;
+
+  height: 100%;      /* ✅ stretch fully */
+  margin: 0;         /* ✅ remove external shrinking */
+  width: 100%;       /* fill sidebar width for balanced padding */
+}
+
+
+/* remove enforced full-height rules added previously */
+
+.sidebar-header {
+  display: block;
+  margin-bottom: 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--menu-border);
 }
 
 /* >>> updated: bigger + bold "Menu" <<< */
 .sidebar-title {
-  font-size: 20px;      /* increased size */
-  font-weight: 700;     /* bold */
+  font-size: 20px;
+  font-weight: 700;
   letter-spacing: 0.5px;
   color: #ffffff;
 }
@@ -304,43 +389,49 @@ body {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px; /* tighter stack */
   font-size: 14px;
 }
 
 .nav-item {
-  padding: 8px 10px;
-  border-radius: 8px;
+  display: inline-flex; /* text vertically centered */
+  align-items: center;
+  padding: 8px 14px; /* slimmer pill, consistent left padding */
+  border-radius: 12px; /* pill shape */
   cursor: pointer;
-  color: #c8d6e5;
+  color: #aec0cf; /* softer text color */
 }
 
-.nav-item:hover {
-  background: #10233b;
-}
+.nav-item:hover { background: var(--menu-hover); }
 
 .nav-item.active {
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--menu-active-bg);
+  color: var(--menu-active-fg);
   font-weight: 600;
+  box-shadow: none; /* reduce glow */
 }
 
 .user-account {
-  margin-top: auto;
-  padding-top: 10px;
-  border-top: 1px solid var(--border);
-  font-size: 13px;
-  color: #8395a7;
+  margin-top: auto;                 /* stick to bottom of card */
+  padding-top: 16px;
+  border-top: 1px solid var(--menu-border);
+  font-size: 12px;
+  color: #6b7d8e;
 }
+
+/* (reverted) no custom user-email styling */
 
 /* PANEL / CHAT AREA */
 .panel {
   border: 1px solid var(--border);
   border-radius: 12px;
-  background: #071321;
+  background: var(--card-dark);
+
   display: flex;
   flex-direction: column;
+  height: 100%;
 }
+
 
 .panel-header {
   padding: 12px 16px;
@@ -411,20 +502,111 @@ body {
 }
 
 /* HISTORY */
+.history-header {
+  align-items: center;
+}
+
+.history-actions .icon-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: #c8d6e5;
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.history-actions .icon-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .history-list {
   padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.history-empty {
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  color: #8395a7;
+}
+
+.history-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.history-item {
-  padding: 10px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: #0b1f35;
-  font-size: 14px;
+.history-row {
+  display: flex;
+  gap: 8px;
 }
+.history-row .label {
+  font-weight: 700;
+  color: #cfd8dc;
+}
+.history-row .value {
+  color: #ffffff;
+}
+.history-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: #8395a7;
+}
+.history-actions-row {
+  display: flex;
+  gap: 8px;
+}
+.btn-link {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: #c8d6e5;
+  border-radius: 999px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.btn-link:hover { border-color: var(--accent); color: var(--accent); }
+
+.answer-collapsed {
+  max-height: 44px;
+  overflow: hidden;
+  position: relative;
+}
+.answer-collapsed::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 24px;
+  background: linear-gradient(to bottom, rgba(16,35,59,0), rgba(16,35,59,1));
+}
+
+.confirm-box {
+  margin-top: 6px;
+  padding: 8px;
+  background: #0b1f35;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: none;
+  gap: 8px;
+  align-items: center;
+}
+.confirm-box.active { display: flex; }
+.confirm-text { flex: 1; font-size: 12px; color: #c8d6e5; }
+.btn-danger { background: #e74c3c; color: #fff; border: none; }
+.btn-muted { background: transparent; color: #c8d6e5; border: 1px solid var(--border); }
 
 /* SETTINGS */
 .settings-body {
@@ -890,21 +1072,9 @@ body.light-mode .app-subtitle {
   }
 }
 
-/ *   S P I N N E R   F O R   L O A D I N G   * / 
- . s p i n n e r   { 
-     d i s p l a y :   i n l i n e - b l o c k ; 
-     w i d t h :   1 6 p x ; 
-     h e i g h t :   1 6 p x ; 
-     b o r d e r :   2 p x   s o l i d   # f 3 f 3 f 3 ; 
-     b o r d e r - t o p :   2 p x   s o l i d   v a r ( - - a c c e n t ) ; 
-     b o r d e r - r a d i u s :   5 0 % ; 
-     a n i m a t i o n :   s p i n   1 s   l i n e a r   i n f i n i t e ; 
-     m a r g i n - l e f t :   8 p x ; 
- } 
- 
- @ k e y f r a m e s   s p i n   { 
-     0 %   {   t r a n s f o r m :   r o t a t e ( 0 d e g ) ;   } 
-     1 0 0 %   {   t r a n s f o r m :   r o t a t e ( 3 6 0 d e g ) ;   } 
- } 
- 
- 
+/*
+  Removed "AUTH MODAL FORCE FIX" overrides that made the hidden
+  auth modal capture clicks and blocked the app. The default rules
+  above already set pointer-events: none when inactive and enable
+  interactions only when .active.
+*/

@@ -1,222 +1,206 @@
 import os
 import sqlite3
 from datetime import datetime
-from dotenv import load_dotenv
-
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
+from dotenv import load_dotenv
 
-# -----------------------------
-# Paths + env loading (reliable)
-# -----------------------------
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-ENV_PATH = os.path.join(BASE_DIR, ".env")
-load_dotenv(ENV_PATH)  # always loads C:\FYP\.env if app.py is in C:\FYP
-
-DB_PATH = os.path.join(BASE_DIR, "database.db")
-UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
-
-ALLOWED_EXTENSIONS = {".txt", ".md", ".pdf", ".docx"}
-
-# Limit uploads (adjust as needed)
-MAX_UPLOAD_MB = 15
-
-# Import AFTER loading env
+# RAG engine
 from FYP_RAG.rag_query_ibm import run_rag_query, ingest_local_document
 
+load_dotenv()
 
-# -----------------------------
-# Flask setup
-# -----------------------------
 app = Flask(__name__)
 CORS(app)
 
-# Flask max request size (file upload)
-app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_MB * 1024 * 1024
+# -----------------------------
+# Paths & config
+# -----------------------------
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
+DB_PATH = os.path.join(BASE_DIR, "database.db")
 
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # -----------------------------
-# DB helpers
+# Database
 # -----------------------------
 def init_db():
-    os.makedirs(UPLOAD_DIR, exist_ok=True)
-    with sqlite3.connect(DB_PATH) as c:
-        c.execute(
-            """
-            CREATE TABLE IF NOT EXISTS history (
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS query_logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id TEXT NOT NULL,
-                question TEXT NOT NULL,
-                answer TEXT NOT NULL,
-                created_at TEXT NOT NULL
+                user_id TEXT,
+                query TEXT,
+                answer TEXT,
+                confidence TEXT,
+                timestamp DATETIME
             )
-            """
-        )
-
-
-def save_history(user_id: str, question: str, answer: str):
-    with sqlite3.connect(DB_PATH) as c:
-        c.execute(
-            "INSERT INTO history (user_id, question, answer, created_at) VALUES (?, ?, ?, ?)",
-            (user_id, question, answer, datetime.utcnow().isoformat()),
-        )
-
-
-def allowed_file(filename: str) -> bool:
-    ext = os.path.splitext(filename)[1].lower()
-    return ext in ALLOWED_EXTENSIONS
-
-
-init_db()
-
+        """)
 
 # -----------------------------
 # Routes
 # -----------------------------
 @app.route("/")
-def home():
+def index():
     return render_template("index.html")
-
-
-@app.route("/health", methods=["GET"])
-def health():
-    # Quick backend check
-    return jsonify(
-        {
-            "ok": True,
-            "uploads_dir": os.path.exists(UPLOAD_DIR),
-            "db_path": DB_PATH,
-        }
-    )
-
-
-@app.route("/login", methods=["POST"])
-def login():
-    data = request.get_json(silent=True) or {}
-    email = (data.get("email") or "").strip()
-    user_id = email if email else "guest"
-    return jsonify({"user_id": user_id})
-
 
 @app.route("/upload_docs", methods=["POST"])
 def upload_docs():
-    print("Upload request received")
     if "file" not in request.files:
-        print("No file in request.files")
-        return jsonify({"success": False, "message": "No file uploaded."}), 400
+        return jsonify(success=False, message="No file uploaded"), 400
 
     file = request.files["file"]
-    user_id = (request.form.get("user_id") or "guest").strip() or "guest"
-    print(f"User ID: {user_id}, File: {file.filename}")
+    user_id = request.form.get("user_id", "guest")
 
-    if not file or not file.filename:
-        print("Empty file or filename")
-        return jsonify({"success": False, "message": "Empty filename."}), 400
+    if file.filename == "":
+        return jsonify(success=False, message="Empty filename"), 400
 
     filename = secure_filename(file.filename)
-    print(f"Secure filename: {filename}")
-    if not filename:
-        print("Invalid filename after secure")
-        return jsonify({"success": False, "message": "Invalid filename."}), 400
-
-    if not allowed_file(filename):
-        print(f"File not allowed: {filename}")
-        return jsonify(
-            {"success": False, "message": "Only .txt, .md, .pdf, .docx files are allowed."}
-        ), 400
-
-    # Save into uploads/<user_id>/
-    safe_user = user_id.replace("\\", "_").replace("/", "_")
-    user_dir = os.path.join(UPLOAD_DIR, safe_user)
+    user_dir = os.path.join(UPLOAD_FOLDER, user_id)
     os.makedirs(user_dir, exist_ok=True)
 
-    save_path = os.path.join(user_dir, filename)
-    print(f"Saving to: {save_path}")
-    file.save(save_path)
+    path = os.path.join(user_dir, filename)
+    file.save(path)
 
-    # Index locally (works now). Later: swap to Discovery ingestion.
     try:
-        print("Starting ingestion")
-        ingest_local_document(user_id=user_id, filepath=save_path)
-        print("Ingestion successful")
-    except Exception as e:
-        print(f"Ingestion error: {e}")
+        ingest_local_document(user_id, path)
         return jsonify(
-            {"success": False, "message": f"Uploaded but failed to index: {e}"}
-        ), 500
-
-    return jsonify(
-        {
-            "success": True,
-            "message": f"Uploaded & indexed: {filename}",
-            "path": save_path,
-        }
-    )
+            success=True,
+            message="Successfully uploaded document"
+        )
+    except Exception as e:
+        app.logger.exception("Upload / ingest failed")
+        return jsonify(success=False, message=str(e)), 500
 
 
 @app.route("/query_rag", methods=["POST"])
 def query_rag():
     data = request.get_json(silent=True) or {}
-    user_id = (data.get("user_id") or "guest").strip() or "guest"
-    user_query = (data.get("query") or "").strip()
 
-    if not user_query:
-        return jsonify({"success": False, "answer": "Please enter a question."}), 400
+    query = data.get("query", "").strip()
+    user_id = data.get("user_id", "guest")
+
+    if not query:
+        return jsonify(success=False, answer="Empty query"), 400
 
     try:
-        out = run_rag_query(query=user_query, user_id=user_id)
+        result = run_rag_query(query, user_id)
 
-        answer = (out.get("answer") or "").strip()
-        confidence = out.get("confidence") or {"score": 0.0, "label": "Low"}
-        sources = out.get("sources") or []
+        # Log for FYP evaluation
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.execute(
+                """
+                INSERT INTO query_logs 
+                (user_id, query, answer, confidence, timestamp)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    user_id,
+                    query,
+                    result["answer"],
+                    result["confidence"],
+                    datetime.now(),
+                )
+            )
 
-        save_history(user_id, user_query, answer)
-
+        # 🔑 IMPORTANT: return RAW DATA ONLY (no HTML)
         return jsonify(
-            {
-                "success": True,
-                "answer": answer,
-                "confidence": confidence,
-                "sources": sources,
-            }
+            success=True,
+            answer=result["answer"],
+            confidence=result["confidence"],
+            sources=result["sources"],
         )
+
     except Exception as e:
-        return jsonify({"success": False, "answer": f"Server error: {e}"}), 500
+        app.logger.exception("RAG query failed")
+        return jsonify(
+            success=False,
+            answer="Internal error during RAG synthesis",
+            error=str(e),
+        ), 500
 
 
 @app.route("/history", methods=["GET"])
 def history():
-    user_id = (request.args.get("user_id") or "guest").strip() or "guest"
-    with sqlite3.connect(DB_PATH) as c:
-        rows = c.execute(
-            """
-            SELECT question, answer, created_at
-            FROM history
-            WHERE user_id=?
-            ORDER BY id DESC
-            LIMIT 50
-            """,
-            (user_id,),
-        ).fetchall()
+    """Return past conversations for the given user_id.
+    Does not touch RAG; reads from existing SQLite logs.
+    """
+    user_id = request.args.get("user_id", "guest")
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                """
+                SELECT id, query, answer, confidence, timestamp
+                FROM query_logs
+                WHERE user_id = ?
+                ORDER BY timestamp DESC
+                LIMIT 100
+                """,
+                (user_id,),
+            ).fetchall()
 
-    items = [{"question": q, "answer": a, "created_at": t} for (q, a, t) in rows]
-    return jsonify({"success": True, "user_id": user_id, "items": items})
-
-
-# Better message when user uploads too large file
-@app.errorhandler(413)
-def too_large(_e):
-    return (
-        jsonify(
+        history = [
             {
-                "success": False,
-                "message": f"File too large. Max is {MAX_UPLOAD_MB}MB.",
+                "id": r["id"],
+                "query": r["query"],
+                "answer": r["answer"],
+                "confidence": r["confidence"],
+                "timestamp": r["timestamp"],
             }
-        ),
-        413,
-    )
+            for r in rows
+        ]
+        return jsonify(success=True, history=history)
+    except Exception as e:
+        app.logger.exception("Fetch history failed")
+        return jsonify(success=False, error=str(e)), 500
 
 
+@app.route("/history/delete", methods=["POST"])
+def history_delete():
+    """Delete a single history item by id for the given user."""
+    data = request.get_json(silent=True) or {}
+    item_id = data.get("id")
+    user_id = data.get("user_id", "guest")
+
+    if not item_id:
+        return jsonify(success=False, message="Missing id"), 400
+
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            cur = conn.execute(
+                "DELETE FROM query_logs WHERE id = ? AND user_id = ?",
+                (item_id, user_id),
+            )
+        return jsonify(success=True, deleted=cur.rowcount)
+    except Exception as e:
+        app.logger.exception("Delete history item failed")
+        return jsonify(success=False, error=str(e)), 500
+
+
+@app.route("/history/clear", methods=["POST"])
+def history_clear():
+    """Delete all history items for the given user."""
+    data = request.get_json(silent=True) or {}
+    user_id = data.get("user_id", "guest")
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            cur = conn.execute(
+                "DELETE FROM query_logs WHERE user_id = ?",
+                (user_id,),
+            )
+        return jsonify(success=True, deleted=cur.rowcount)
+    except Exception as e:
+        app.logger.exception("Clear history failed")
+        return jsonify(success=False, error=str(e)), 500
+
+
+# -----------------------------
+# Main
+# -----------------------------
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    init_db()
+    print("🔥 Flask running on http://127.0.0.1:5001")
+    app.run(host="127.0.0.1", port=5001, debug=True)

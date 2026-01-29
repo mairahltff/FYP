@@ -1,224 +1,131 @@
 import os
 import re
-from typing import Dict, List, Tuple
+import requests
+from pathlib import Path
+from dotenv import load_dotenv
+from typing import Dict, List
+import PyPDF2
 
-# Optional PDF support
-try:
-    import PyPDF2
-except Exception:
-    PyPDF2 = None
+load_dotenv(dotenv_path=Path(__file__).resolve().parents[1] / ".env")
 
-
-# -----------------------------
-# Local in-memory index
-# -----------------------------
-LOCAL_INDEX: Dict[str, List[Dict]] = {}
-# Structure:
-# LOCAL_INDEX[user_id] = [
-#   {"source": "filename#chunk3", "sentences": [...], "tokens": set([...])}
-# ]
+LOCAL_INDEX: Dict[str, List[dict]] = {}
 
 
-# -----------------------------
-# Text cleaning & utilities
-# -----------------------------
-def _clean_text(text: str) -> str:
-    text = text.replace("\x00", " ")
-    text = re.sub(r"\s+", " ", text)
-    return text.strip()
-
-
-def _remove_pdf_noise(line: str) -> bool:
-    """Return True if line looks like PDF junk."""
-    line = line.strip().lower()
-    if not line:
-        return True
-    if re.match(r"^\d+$", line):
-        return True
-    if "contents" in line or "foreword" in line:
-        return True
-    if len(line.split()) < 5:
-        return True
-    return False
-
-
-def _split_sentences(text: str) -> List[str]:
-    sentences = re.split(r"(?<=[.!?])\s+", text)
-    cleaned = []
-    for s in sentences:
-        s = s.strip()
-        if _remove_pdf_noise(s):
-            continue
-        if not re.match(r"^[A-Z]", s):
-            continue
-        cleaned.append(s)
-    return cleaned
-
-
-def _tokenize(text: str) -> set:
+def tokenize(text: str) -> set:
     return set(re.findall(r"[a-z0-9']+", text.lower()))
 
 
-def _chunk_text(text: str, max_sentences: int = 5) -> List[List[str]]:
-    sentences = _split_sentences(text)
+def clean_text(text: str) -> str:
+    return re.sub(r"\s+", " ", text.replace("\x00", " ")).strip()
+
+
+def ingest_local_document(user_id: str, filepath: str):
+    filename = os.path.basename(filepath)
     chunks = []
-    buf = []
 
-    for s in sentences:
-        buf.append(s)
-        if len(buf) >= max_sentences:
-            chunks.append(buf)
-            buf = []
-
-    if buf:
-        chunks.append(buf)
-
-    return chunks
-
-
-# -----------------------------
-# File reading
-# -----------------------------
-def _read_txt_or_md(filepath: str) -> str:
-    with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
-        return f.read()
-
-
-def _read_pdf(filepath: str) -> str:
-    if PyPDF2 is None:
-        raise RuntimeError("PyPDF2 is not installed. Install it to read PDFs.")
-    text_parts = []
     with open(filepath, "rb") as f:
         reader = PyPDF2.PdfReader(f)
-        for page in reader.pages:
-            text_parts.append(page.extract_text() or "")
-    return "\n".join(text_parts)
+        for page_num, page in enumerate(reader.pages, start=1):
+            text = clean_text(page.extract_text() or "")
+            if not text:
+                continue
+
+            sentences = re.split(r"(?<=[.!?])\s+", text)
+            for i in range(0, len(sentences), 4):
+                block = " ".join(sentences[i:i + 4])
+                chunks.append({
+                    "source": filename,
+                    "page": page_num,
+                    "chunk": (i // 4) + 1,
+                    "text": block,
+                    "tokens": tokenize(block),
+                })
+
+    LOCAL_INDEX.setdefault(user_id, []).extend(chunks)
 
 
-def _read_docx(filepath: str) -> str:
-    try:
-        from docx import Document
-        doc = Document(filepath)
-        text_parts = []
-        for para in doc.paragraphs:
-            text_parts.append(para.text)
-        return "\n".join(text_parts)
-    except Exception:
-        return ""
+def get_iam_token():
+    res = requests.post(
+        "https://iam.cloud.ibm.com/identity/token",
+        data={
+            "apikey": os.getenv("WATSONX_API_KEY"),
+            "grant_type": "urn:ibm:params:oauth:grant-type:apikey",
+        },
+    )
+    return res.json()["access_token"]
 
 
-# -----------------------------
-# Ingestion
-# -----------------------------
-def ingest_local_document(user_id: str, filepath: str) -> None:
-    ext = os.path.splitext(filepath)[1].lower()
-    filename = os.path.basename(filepath)
+def call_granite(question: str, context: str) -> str:
+    token = get_iam_token()
+    url = f"{os.getenv('WATSONX_URL')}/ml/v1/text/generation?version=2023-05-29"
 
-    if ext in [".txt", ".md"]:
-        raw = _read_txt_or_md(filepath)
-    elif ext == ".pdf":
-        raw = _read_pdf(filepath)
-    elif ext == ".docx":
-        raw = _read_docx(filepath)
-    else:
-        raise ValueError(f"Unsupported file type: {ext}")
+    prompt = (
+        "You are a research assistant.\n"
+        "Write ONE academic paragraph that directly answers the question.\n"
+        "Use ONLY the provided context.\n"
+        "DO NOT include references, citations, confidence scores, headings, or lists.\n"
+        "DO NOT mention sources.\n\n"
+        f"Context:\n{context}\n\n"
+        f"Question: {question}\n\n"
+        "Answer:"
+    )
 
-    raw = _clean_text(raw)
-    sentence_chunks = _chunk_text(raw)
+    payload = {
+        "model_id": "ibm/granite-3-3-8b-instruct",
+        "project_id": os.getenv("IBM_PROJECT_ID"),
+        "input": prompt,
+        "parameters": {
+            "max_new_tokens": 400,
+            "temperature": 0.2
+        }
+    }
 
-    items = []
-    for i, sentences in enumerate(sentence_chunks):
-        text_block = " ".join(sentences)
-        items.append({
-            "source": f"{filename}#chunk{i+1}",
-            "sentences": sentences,
-            "tokens": _tokenize(text_block)
-        })
+    res = requests.post(
+        url,
+        headers={"Authorization": f"Bearer {token}"},
+        json=payload
+    )
 
-    LOCAL_INDEX.setdefault(user_id, [])
-    LOCAL_INDEX[user_id].extend(items)
+    if res.status_code != 200:
+        raise RuntimeError(res.text)
+
+    return res.json()["results"][0]["generated_text"].strip()
 
 
-# -----------------------------
-# Retrieval
-# -----------------------------
-def _retrieve_local(query: str, user_id: str, top_k: int = 5) -> List[Tuple[float, Dict]]:
-    q_tokens = _tokenize(query)
-    candidates = LOCAL_INDEX.get(user_id, []) + LOCAL_INDEX.get("guest", [])
+def run_rag_query(query: str, user_id: str):
+    q_tokens = tokenize(query)
+    docs = LOCAL_INDEX.get(user_id, [])
 
     scored = []
-    for item in candidates:
-        overlap = len(q_tokens & item["tokens"])
-        score = overlap / max(len(q_tokens), 1)
-        if score > 0:
-            scored.append((score, item))
+    for d in docs:
+        score = len(q_tokens & d["tokens"]) / max(len(q_tokens), 1)
+        if score > 0.1:
+            scored.append((score, d))
+
+    if not scored:
+        return {
+            "answer": "No relevant information found in the uploaded document.",
+            "confidence": "Low (0.00)",
+            "sources": [],
+        }
 
     scored.sort(key=lambda x: x[0], reverse=True)
-    return scored[:top_k]
+    top = scored[:5]
 
+    context = " ".join(d["text"] for _, d in top)
+    answer = call_granite(query, context)
 
-# -----------------------------
-# Confidence
-# -----------------------------
-def _confidence_from_results(scores: List[float]) -> Dict:
-    if not scores:
-        return {"score": 0.0, "label": "Low"}
+    avg = sum(s for s, _ in top) / len(top)
+    label = "High" if avg >= 0.6 else "Medium"
 
-    avg = sum(scores) / len(scores)
-
-    if avg >= 0.75:
-        label = "High"
-    elif avg >= 0.4:
-        label = "Medium"
-    else:
-        label = "Low"
-
-    return {"score": round(avg, 2), "label": label}
-
-
-# -----------------------------
-# Main RAG
-# -----------------------------
-def run_rag_query(query: str, user_id: str) -> Dict:
-    # Check if user has any uploaded documents
-    user_docs = LOCAL_INDEX.get(user_id, []) + LOCAL_INDEX.get("guest", [])
-    if not user_docs:
-        return {
-            "answer": "Please upload a document first, then ask your questions.",
-            "confidence": {"score": 0.0, "label": "Low"},
-            "sources": [],
-        }
-
-    results = _retrieve_local(query, user_id=user_id, top_k=5)
-
-    if not results:
-        return {
-            "answer": "I couldn’t find relevant information in the uploaded documents.",
-            "confidence": {"score": 0.0, "label": "Low"},
-            "sources": [],
-        }
-
-    scores = []
-    collected_sentences = []
     sources = []
-
-    for score, item in results:
-        scores.append(score)
-        sources.append(item["source"])
-        for s in item["sentences"]:
-            if s not in collected_sentences:
-                collected_sentences.append(s)
-
-    # Keep answer focused (no dumping)
-    final_sentences = collected_sentences[:6]
-
-    answer = (
-        "Based on the uploaded document content, here is a summary answer:\n\n"
-        + " ".join(final_sentences)
-    )
+    for _, d in top[:3]:
+        src = f"{d['source']} — Page {d['page']} (Chunk {d['chunk']})"
+        if src not in sources:
+            sources.append(src)
 
     return {
         "answer": answer,
-        "confidence": _confidence_from_results(scores),
+        "confidence": f"{label} ({avg:.2f})",
         "sources": sources,
     }

@@ -1,3 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+
+# Virtual environments
 .venv/
-FYP_RAG/.venv/
-FYP_RAG/granite-snack-cookbook/
+venv/
+
+# Environment variables
+.env
+
+# Runtime uploads
+uploads/
+
+# Database
+database.db
+
+# OS
+.DS_Store
+
+granite-snack-cookbook/
+

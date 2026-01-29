@@ -1,390 +1,518 @@
+// =============================
+// AUTH / UI GUARDS
+// =============================
+function isAuthBlocked() {
+  const authModal = document.getElementById("auth-modal");
+  return authModal && authModal.classList.contains("active");
+}
+
+function syncAuthUI() {
+  const app = document.querySelector(".app");
+  const modal = document.getElementById("auth-modal");
+  if (!app || !modal) return;
+
+  if (modal.classList.contains("active")) {
+    // Block app when auth is open
+    app.style.pointerEvents = "none";
+    app.style.userSelect = "none";
+    app.style.opacity = "0.4";
+  } else {
+    // Enable app after login
+    app.style.pointerEvents = "auto";
+    app.style.userSelect = "auto";
+    app.style.opacity = "1";
+  }
+}
+
+// =============================
+// MAIN APP
+// =============================
 document.addEventListener("DOMContentLoaded", () => {
-  // ---------- SIGNUP PASSWORD MATCH VALIDATION ----------
-  const signupForm = document.getElementById('signup-form');
-  if (signupForm) {
-    const signupBtn = document.getElementById('signup-btn');
-    const passwordInput = document.getElementById('signup-password');
-    const confirmInput = document.getElementById('signup-confirm-password');
-    const errorDiv = document.getElementById('signup-error');
-    if (signupBtn && passwordInput && confirmInput && errorDiv) {
-      signupBtn.addEventListener('click', function(e) {
-        if (passwordInput.value !== confirmInput.value) {
-          e.preventDefault();
-          errorDiv.textContent = 'Passwords do not match.';
-          confirmInput.classList.add('input-error');
-        } else {
-          errorDiv.textContent = '';
-          confirmInput.classList.remove('input-error');
-        }
-      });
-      confirmInput.addEventListener('input', function() {
-        if (passwordInput.value === confirmInput.value) {
-          errorDiv.textContent = '';
-          confirmInput.classList.remove('input-error');
-        }
-      });
-    }
-  }
-  // ---------- SCREEN SWITCHING ----------
-  const screens = document.querySelectorAll(".screen");
+  let currentUserId = (window.getCurrentUserId ? window.getCurrentUserId() : (window.currentUserId || "user"));
 
-  // track which chat screen was last active
-  let lastChatScreen = "screen-healthcare";
-  let selectedTopic = "healthcare";
+  // 🔐 Initial auth UI sync
+  syncAuthUI();
 
-  function showScreen(id) {
-    // remember last chat screen
-    if (id === "screen-healthcare" || id === "screen-education") {
-      lastChatScreen = id;
-    }
-
-    screens.forEach((s) => s.classList.toggle("active", s.id === id));
-
-    // highlight nav items
-    document.querySelectorAll(".nav-item").forEach((item) => {
-      const target = item.dataset.target;
-      item.classList.toggle("active", target === id);
-    });
+  // Ensure login/signup fields are empty on load
+  if (typeof window.resetAuthForms === "function") {
+    window.resetAuthForms();
   }
 
-  document.querySelectorAll(".nav-item").forEach((item) => {
-    item.addEventListener("click", () => {
-      let target = item.dataset.target;
-      const label = item.textContent.trim();
+  // -----------------------------
+  // SCREEN NAVIGATION HELPERS
+  // -----------------------------
+  function showScreen(screenId) {
+    if (isAuthBlocked()) return;
 
-      // If the nav item is "Your Chat", go back to whichever chat was last used
-      if (label === "Your Chat") {
-        target = lastChatScreen;
-      }
+    document.querySelectorAll(".screen").forEach(s =>
+      s.classList.remove("active")
+    );
 
-      if (target) showScreen(target);
-    });
-  });
+    document.getElementById(screenId)?.classList.add("active");
 
-  // ---------- CLICK LOGO/TITLE TO GO HOME ----------
-  const homeBtn = document.getElementById("home-button");
-  if (homeBtn) {
-    homeBtn.addEventListener("click", () => {
-      showScreen("screen-home");
-    });
-  }
-
-  // ---------- TOPIC SELECTION ----------
-  document.querySelectorAll(".topic-circle").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      selectedTopic = btn.dataset.topic || "healthcare";
-      document.querySelectorAll(".topic-circle").forEach((b) =>
-        b.classList.remove("selected")
-      );
-      btn.classList.add("selected");
-    });
-  });
-
-  // ---------- START CHAT + CUSTOM LOADING ----------
-  const startBtn = document.getElementById("btn-start-chat");
-  const loadingTextEl = document.getElementById("loading-text");
-
-  if (startBtn && loadingTextEl) {
-    startBtn.addEventListener("click", () => {
-      const targetScreen =
-        selectedTopic === "healthcare"
-          ? "screen-healthcare"
-          : "screen-education";
-
-      // set loading text based on topic
-      if (selectedTopic === "healthcare") {
-        loadingTextEl.textContent = "Scrubbing in...";
+    // Toggle home-only mode (hide sidebar, center hero)
+    const appEl = document.querySelector('.app');
+    if (appEl) {
+      if (screenId === 'screen-home') {
+        appEl.classList.add('home-only');
+        // Clear sidebar highlight since Home isn't a sidebar tab
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
       } else {
-        loadingTextEl.textContent = "Organising your resources...";
+        appEl.classList.remove('home-only');
       }
-
-      // show loading first
-      showScreen("screen-loading");
-
-      // fake loading delay, then jump to chat
-      setTimeout(() => {
-        showScreen(targetScreen);
-      }, 0); // Changed to 0 for immediate switch
-    });
+    }
   }
 
-  // ---------- SIMPLE CHAT + HISTORY ----------
-  const history = [];
-  let currentUserId = null; // Track which user's data we're viewing
+  function setNavActive(target) {
+    document.querySelectorAll(".nav-item").forEach(n =>
+      n.classList.remove("active")
+    );
+    if (target) target.classList.add("active");
+  }
 
-  function addMessage(chatId, sender, text) {
-    console.log('Adding message:', chatId, sender, text);
-    const container = document.getElementById(chatId + "-messages");
-    console.log('Container:', container);
+  // -----------------------------
+  // HISTORY VIEW (BACKEND FETCH)
+  // -----------------------------
+  async function loadHistory() {
+    const container = document.querySelector("#screen-history .history-list");
     if (!container) return;
+    container.innerHTML = "";
 
+    try {
+      const res = await fetch(`/history?user_id=${encodeURIComponent(currentUserId)}`);
+      const data = await res.json();
+      if (!data.success || !Array.isArray(data.history) || !data.history.length) {
+        const empty = document.createElement("div");
+        empty.className = "history-empty";
+        empty.textContent = "No history yet.";
+        container.appendChild(empty);
+        return;
+      }
+
+      data.history.forEach(item => {
+        const card = document.createElement("div");
+        card.className = "history-card";
+        card.dataset.id = item.id;
+        const ts = item.timestamp ? new Date(item.timestamp).toLocaleString() : "";
+        card.innerHTML = `
+          <div class="history-row"><span class="label">Q:</span><span class="value">${escapeHtml(item.query)}</span></div>
+          <div class="history-row answer-collapsed" data-collapsed="true"><span class="label">A:</span><span class="value">${escapeHtml(item.answer)}</span></div>
+          <div class="history-meta">
+            <span>${ts}</span>
+            <div class="history-actions-row">
+              <button class="btn-link view-full">View full answer →</button>
+              <button class="btn-link delete-btn">Delete</button>
+            </div>
+          </div>
+          <div class="confirm-box">
+            <div class="confirm-text">Delete this entry?</div>
+            <button class="btn-link btn-muted cancel-delete">Cancel</button>
+            <button class="btn-link btn-danger confirm-delete">Delete</button>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+
+      // Wire up actions
+      container.querySelectorAll('.view-full').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const card = btn.closest('.history-card');
+          const ans = card.querySelector('.answer-collapsed');
+          const collapsed = ans.dataset.collapsed === 'true';
+          if (collapsed) {
+            ans.classList.remove('answer-collapsed');
+            ans.dataset.collapsed = 'false';
+            btn.textContent = 'Collapse answer ↑';
+          } else {
+            ans.classList.add('answer-collapsed');
+            ans.dataset.collapsed = 'true';
+            btn.textContent = 'View full answer →';
+          }
+        });
+      });
+
+      container.querySelectorAll('.delete-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const card = btn.closest('.history-card');
+          const box = card.querySelector('.confirm-box');
+          box.classList.add('active');
+        });
+      });
+      container.querySelectorAll('.cancel-delete').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const card = btn.closest('.history-card');
+          card.querySelector('.confirm-box').classList.remove('active');
+        });
+      });
+      container.querySelectorAll('.confirm-delete').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const card = btn.closest('.history-card');
+          const id = card.dataset.id;
+          try {
+            const res = await fetch('/history/delete', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id, user_id: currentUserId })
+            });
+            const json = await res.json();
+            if (json.success) {
+              card.remove();
+              if (!container.children.length) {
+                const empty = document.createElement('div');
+                empty.className = 'history-empty';
+                empty.textContent = 'No history yet.';
+                container.appendChild(empty);
+              }
+            }
+          } catch (err) { console.error(err); }
+        });
+      });
+    } catch (err) {
+      const empty = document.createElement("div");
+      empty.className = "history-empty";
+      empty.textContent = "Failed to load history.";
+      container.appendChild(empty);
+      console.error(err);
+    }
+  }
+
+  // -----------------------------
+  // INITIALIZE CHAT SCREENS
+  // -----------------------------
+  ["healthcare"].forEach(id => {
+    const box = document.getElementById(id + "-messages");
+    if (box) {
+      box.innerHTML = "";
+      addMessage(id, "bot", "Upload a document first, then ask your questions.");
+    }
+  });
+
+  // -----------------------------
+  // CHAT INPUT HANDLING (RAG SAFE)
+  // -----------------------------
+  document.querySelectorAll(".chat-input-row").forEach(form => {
+    // Upload button triggers hidden file input
+    const fileInput = form.querySelector("input[type='file']");
+    const plusBtn = form.querySelector(".upload-btn");
+    if (plusBtn && fileInput) {
+      plusBtn.addEventListener("click", () => fileInput.click());
+      fileInput.addEventListener("change", () => {
+        if (fileInput.files && fileInput.files.length) {
+          form.requestSubmit();
+        }
+      });
+    }
+    form.addEventListener("submit", async e => {
+      e.preventDefault();
+
+      // Prevent double submits (e.g., rapid clicks or duplicate events)
+      if (form.dataset.inProgress === "true") return;
+
+      const input = form.querySelector("input[type='text']");
+      const fileInput = form.querySelector("input[type='file']");
+      const btn = form.querySelector("button[type='submit']");
+      const chatId = form.dataset.chat;
+
+      const question = input.value.trim();
+      // Clear input immediately to avoid showing repeated text while generating
+      if (question) {
+        input.value = "";
+        input.setAttribute("value", "");
+        input.blur();
+      }
+      const file = fileInput?.files[0];
+      if (!question && !file) return;
+
+      input.disabled = true;
+      btn.disabled = true;
+      btn.textContent = "Processing…";
+      form.dataset.inProgress = "true";
+
+      try {
+        if (file) {
+          // Ensure a single uploading indicator with spinner
+          const container = document.getElementById(chatId + "-messages");
+          // Clean up any stray plain-text 'Uploading document...' messages
+          if (container) {
+            container.querySelectorAll(".message.bot").forEach(n => {
+              const txt = (n.textContent || "").toLowerCase().replace(/\s+/g, " ").trim();
+              if (txt.includes("uploading document")) {
+                n.remove();
+              }
+            });
+          }
+          let uploading = container?.querySelector(".message.bot.uploading");
+          if (!uploading && container) {
+            uploading = document.createElement("div");
+            uploading.className = "message bot uploading";
+            uploading.innerHTML = '<span class="spinner inline"></span> Uploading document...';
+            container.appendChild(uploading);
+            container.scrollTop = container.scrollHeight;
+          } else if (uploading) {
+            uploading.innerHTML = '<span class="spinner inline"></span> Uploading document...';
+          }
+
+          const fd = new FormData();
+          fd.append("file", file);
+          fd.append("user_id", currentUserId);
+
+          const up = await fetch("/upload_docs", {
+            method: "POST",
+            body: fd
+          });
+          const upJson = await up.json();
+          if (!upJson.success) throw new Error(upJson.message);
+
+          // Update the same uploading placeholder to success
+          if (uploading) {
+            uploading.classList.remove("uploading");
+            uploading.textContent = "Successfully uploaded document";
+          } else {
+            addMessage(chatId, "bot", "Successfully uploaded document");
+          }
+        }
+
+        if (question) {
+          addMessage(chatId, "user", question);
+
+          addMessage(chatId, "bot", "Synthesizing answer from document context...");
+
+          const res = await fetch("/query_rag", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ query: question, user_id: currentUserId })
+          });
+
+          const result = await res.json();
+          if (!result.success) throw new Error(result.answer);
+
+          const answerText = typeof result.answer === 'string' ? result.answer : String(result.answer || '');
+          let tail = '';
+          if (result.confidence) {
+            tail += `<br><br><strong>Confidence score:</strong><br>${escapeHtml(String(result.confidence))}<br>`;
+          }
+          if (Array.isArray(result.sources) && result.sources.length) {
+            tail += "<br><strong>Sources:</strong><br>" + result.sources.map(s => `• ${escapeHtml(String(s))}`).join("<br>");
+          }
+
+          // Type out the answer smoothly, then append metadata
+          typeLastBotMessage(chatId, answerText, tail);
+        }
+      } catch (err) {
+        // If upload placeholder exists, show error there; else generic
+        const container = document.getElementById(chatId + "-messages");
+        const uploading = container?.querySelector(".message.bot.uploading");
+        if (uploading) {
+          uploading.classList.remove("uploading");
+          uploading.textContent = "Upload failed. Please try again.";
+        } else {
+          updateLastBotMessage(chatId, "An error occurred while answering.");
+        }
+        console.error(err);
+      } finally {
+        input.value = "";
+        if (fileInput) fileInput.value = "";
+        input.disabled = false;
+        btn.disabled = false;
+        btn.textContent = "▶";
+        delete form.dataset.inProgress;
+      }
+    });
+  });
+
+  // -----------------------------
+  // NAVIGATION
+  // -----------------------------
+  document.querySelectorAll(".nav-item").forEach(item => {
+    item.addEventListener("click", () => {
+      if (isAuthBlocked()) return;
+      const target = item.dataset.target;
+      if (!target) return;
+      showScreen(target);
+      setNavActive(item);
+      if (target === "screen-history") loadHistory();
+    });
+  });
+
+  // Header no longer navigates to Home; Home is shown only post-login
+
+  document.getElementById("btn-start-chat")?.addEventListener("click", () => {
+    showScreen("screen-healthcare");
+    setNavActive(document.querySelector('[data-target="screen-healthcare"]'));
+  });
+
+  // Delete all history
+  document.getElementById('history-clear')?.addEventListener('click', async () => {
+    if (isAuthBlocked()) return;
+    const ok = window.confirm('Delete all history?');
+    if (!ok) return;
+    try {
+      const res = await fetch('/history/clear', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: currentUserId })
+      });
+      const json = await res.json();
+      if (json.success) {
+        const container = document.querySelector('#screen-history .history-list');
+        if (container) {
+          container.innerHTML = '';
+          const empty = document.createElement('div');
+          empty.className = 'history-empty';
+          empty.textContent = 'No history yet.';
+          container.appendChild(empty);
+        }
+      }
+    } catch (err) { console.error(err); }
+  });
+
+  // -----------------------------
+  // AUTH EVENT → ENABLE APP
+  // -----------------------------
+  document.addEventListener("userChanged", () => {
+    currentUserId = (window.getCurrentUserId ? window.getCurrentUserId() : (window.currentUserId || "user"));
+    syncAuthUI();
+    // After sign in, show Home first
+    showScreen("screen-home");
+    document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
+  });
+
+  // -----------------------------
+  // CHAT HELPERS
+  // -----------------------------
+  function addMessage(chatId, sender, html) {
+    const container = document.getElementById(chatId + "-messages");
+    if (!container) return;
+    const normalized = (typeof html === "string" ? html : "").toLowerCase().replace(/\s+/g, " ").trim();
+    if (sender === "bot" && normalized.includes("uploading document")) {
+      container.querySelectorAll(".message.bot").forEach(n => {
+        const txt = (n.textContent || "").toLowerCase().replace(/\s+/g, " ").trim();
+        if (txt.includes("uploading document")) n.remove();
+      });
+      let uploading = container.querySelector(".message.bot.uploading");
+      if (!uploading) {
+        uploading = document.createElement("div");
+        uploading.className = "message bot uploading";
+        uploading.innerHTML = '<span class="spinner inline"></span> Uploading document...';
+        container.appendChild(uploading);
+        container.scrollTop = container.scrollHeight;
+      } else {
+        uploading.innerHTML = '<span class="spinner inline"></span> Uploading document...';
+      }
+      return;
+    }
     const msg = document.createElement("div");
     msg.className = "message " + sender;
-    msg.innerHTML = text;
-
+    msg.innerHTML = html;
     container.appendChild(msg);
     container.scrollTop = container.scrollHeight;
   }
 
-  function removeLastBotMessage() {
-    const container = document.getElementById("healthcare-messages");
+  // util: escape HTML
+  function escapeHtml(str) {
+    if (str == null) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  function updateLastBotMessage(chatId, html) {
+    const container = document.getElementById(chatId + "-messages");
     if (!container) return;
-    const messages = container.querySelectorAll(".message.bot");
-    if (messages.length > 0) {
-      container.removeChild(messages[messages.length - 1]);
-    }
+    const bots = container.querySelectorAll(".message.bot");
+    if (bots.length) bots[bots.length - 1].innerHTML = html;
   }
 
-  function updateLastBotMessage(newText) {
-    const container = document.getElementById("healthcare-messages");
+  // Smooth typing effect for the most recent bot message
+  function typeLastBotMessage(chatId, text, afterHtml = '') {
+    const container = document.getElementById(chatId + "-messages");
     if (!container) return;
-    const messages = container.querySelectorAll(".message.bot");
-    if (messages.length > 0) {
-      messages[messages.length - 1].innerHTML = newText;
-    }
-  }
+    const bots = container.querySelectorAll(".message.bot");
+    const target = bots[bots.length - 1];
+    if (!target) return;
 
-  // Listen for user change event (from Firebase auth)
-  window.addEventListener('userChanged', (event) => {
-    const userId = event.detail.userId;
-    console.log('User changed to:', userId);
-    currentUserId = userId;
-    loadUserChatHistory(userId);
-  });
+    // Prepare a typing container
+    target.innerHTML = "<strong>Answer:</strong><br><span class=\"typing-area\"></span>";
+    const area = target.querySelector('.typing-area');
+    if (!area) return;
 
-  // Listen for clear chat history event (from Firebase auth - when switching users)
-  window.addEventListener('clearChatHistory', () => {
-    history.length = 0; // Clear the history array
-    refreshHistory();
-  });
+    const chars = String(text || '');
+    let i = 0;
+    const speed = 12; // ms per char; tweak for feel
 
-  // Load chat history for specific user
-  async function loadUserChatHistory(userId) {
-    if (!userId) {
-      history.length = 0;
-      refreshHistory();
-      return;
-    }
-
-    try {
-      const response = await fetch(`/history?user_id=${encodeURIComponent(userId)}`);
-      const result = await response.json();
-      if (result.success) {
-        history.length = 0;
-        result.items.forEach(item => {
-          history.push({
-            topic: 'healthcare', // Assume healthcare for now
-            text: item.question,
-            timestamp: new Date(item.created_at)
-          });
-        });
-        refreshHistory();
-
-        // Rebuild messages on screen
-        document.getElementById('healthcare-messages').innerHTML = '<div class="message bot">Upload a document first, then ask your questions.</div>';
-        
-        history.forEach(item => {
-          addMessage(item.topic, 'user', item.text);
-          // Don't add bot reply here, as it's saved in history
-        });
+    function step() {
+      if (i >= chars.length) {
+        // Append tail (confidence, sources) once typing completes
+        if (afterHtml) target.innerHTML = target.innerHTML + afterHtml;
+        return;
       }
-    } catch (error) {
-      console.log('Could not load chat history from server');
-      history.length = 0;
-      refreshHistory();
-    }
-  }
-
-  document.querySelectorAll(".chat-input-row").forEach((form) => {
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      console.log('Form submitted, currentUserId:', currentUserId);
-
-      const input = form.querySelector("input[type='text']");
-      const submitBtn = form.querySelector("button[type='submit']");
-      console.log('Submit button:', submitBtn);
-      const text = input.value.trim();
-      const fileInput = form.querySelector("input[type='file']");
-      const file = fileInput ? fileInput.files[0] : null;
-
-      console.log('Text:', text, 'File:', file);
-
-      if (!text && !file) return;
-
-      const topic = form.dataset.chat; // "healthcare"
-
-      // Disable form during processing
-      input.disabled = true;
-      if (submitBtn) submitBtn.disabled = true;
-      submitBtn.textContent = "Processing...";
-
-      // If file is uploaded, send to upload endpoint first
-      if (file) {
-        console.log('Uploading file...');
-        addMessage(topic, "bot", "Uploading and processing document... <span class='spinner'></span>");
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('user_id', currentUserId || 'guest');
-
-        try {
-          const uploadResponse = await fetch('/upload_docs', {
-            method: 'POST',
-            body: formData
-          });
-          const uploadResult = await uploadResponse.json();
-          console.log('Upload result:', uploadResult);
-          // Update the message with the result
-          updateLastBotMessage(uploadResult.success ? uploadResult.message : `Upload failed: ${uploadResult.message}`);
-          if (!uploadResult.success) {
-            // Re-enable form
-            input.disabled = false;
-            if (submitBtn) submitBtn.disabled = false;
-            submitBtn.textContent = "▶";
-            return;
-          }
-        } catch (error) {
-          console.log('Upload fetch error:', error);
-          updateLastBotMessage(`Upload error: ${error.message}`);
-          // Re-enable form
-          input.disabled = false;
-          if (submitBtn) submitBtn.disabled = false;
-          submitBtn.textContent = "▶";
-          return;
-        }
-      }
-
-      if (text) {
-        console.log('Sending query:', text);
-        addMessage(topic, "user", text);
-
-        // Send query to backend
-        try {
-          const response = await fetch('/query_rag', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query: text, user_id: currentUserId || 'guest' })
-          });
-          const result = await response.json();
-          console.log('Query result:', result);
-          if (result.success) {
-            addMessage(topic, "bot", result.answer);
-          } else {
-            addMessage(topic, "bot", `Error: ${result.answer}`);
-          }
-        } catch (error) {
-          console.log('Query fetch error:', error);
-          addMessage(topic, "bot", `Error: ${error.message}`);
-        }
-
-        input.value = "";
-      }
-
-      if (file) {
-        fileInput.value = ""; // Clear file input
-      }
-
-      // Re-enable form
-      input.disabled = false;
-      if (submitBtn) submitBtn.disabled = false;
-      submitBtn.textContent = "▶";
-    });
-  });
-
-  function refreshHistory() {
-    const list = document.getElementById("history-list");
-    if (!list) return;
-
-    list.innerHTML = "";
-
-    if (!history.length) {
-      list.innerHTML = `<p style="color:#7f8c8d">No chat history found.</p>`;
-      return;
-    }
-
-    history
-      .slice()
-      .reverse()
-      .forEach((item) => {
-        const div = document.createElement("div");
-        div.className = "history-item";
-        div.innerHTML = `
-          ${item.text}
-          <small style="color:#aaa; float:right;">${item.topic}</small>
-        `;
-        list.appendChild(div);
-      });
-  }
-
-  refreshHistory();
-
-  // ---------- TEMPERATURE SLIDER (0–8) + LIVE VALUE + LABEL ----------
-  const tempSlider = document.querySelector('[data-setting="temperature"]');
-  const tempValue = document.getElementById("temp-value");
-
-  function getTempLabel(value) {
-    value = Number(value);
-
-    if (value <= 1) return "Strict";
-    if (value <= 3) return "Safe";
-    if (value === 4) return "Balanced";
-    if (value <= 6) return "Creative";
-    return "Very Creative";
-  }
-
-  if (tempSlider && tempValue) {
-    const savedTemp = localStorage.getItem("chatly-temperature");
-
-    // Load saved temperature or fallback to slider's default
-    const initialValue = savedTemp !== null ? savedTemp : tempSlider.value;
-    tempSlider.value = initialValue;
-    tempValue.textContent = `Value: ${initialValue} — ${getTempLabel(initialValue)}`;
-
-    // Update text + save when user moves the slider
-    tempSlider.addEventListener("input", () => {
-      const val = tempSlider.value;
-      tempValue.textContent = `Value: ${val} — ${getTempLabel(val)}`;
-      localStorage.setItem("chatly-temperature", val);
-      console.log("Temperature set to:", val);
-    });
-  }
-
-  // ---------- DARK MODE TOGGLE (light/dark theme switch) ----------
-  const darkToggle = document.querySelector('[data-setting="darkmode"]');
-
-  if (darkToggle) {
-    // Helper to apply theme + sync toggle
-    const applyTheme = (makeLight) => {
-      if (makeLight) {
-        document.body.classList.add("light-mode");
-        darkToggle.classList.add("active");
-        localStorage.setItem("chatly-theme", "light");
+      const ch = chars[i++];
+      if (ch === '\n') {
+        area.innerHTML += '<br>';
       } else {
-        document.body.classList.remove("light-mode");
-        darkToggle.classList.remove("active");
-        localStorage.setItem("chatly-theme", "dark");
+        area.innerHTML += escapeHtml(ch);
       }
-    };
-
-    // 1. Load saved theme (if any)
-    const saved = localStorage.getItem("chatly-theme");
-    if (saved === "light") {
-      applyTheme(true);
-    } else {
-      applyTheme(false); // default = dark (your current theme)
+      container.scrollTop = container.scrollHeight;
+      setTimeout(step, speed);
     }
-
-    // 2. When user clicks the toggle
-    darkToggle.addEventListener("click", () => {
-      const willBeLight = !document.body.classList.contains("light-mode");
-      applyTheme(willBeLight);
-    });
+    step();
   }
-
-  // ---------- PASSWORD TOGGLE FUNCTION ----------
-  window.togglePassword = function(inputId) {
-    const input = document.getElementById(inputId);
-    if (input) {
-      input.type = input.type === 'password' ? 'text' : 'password';
-    }
-  };
 });
+
+// -----------------------------
+// AUTH FORM TOGGLES (GLOBAL)
+// -----------------------------
+// These are called by links in index.html to switch between
+// the login and signup forms inside the auth modal.
+window.resetAuthForms = function () {
+  const lfEmail = document.getElementById("login-email");
+  const lfPass = document.getElementById("login-password");
+  const sfName = document.getElementById("signup-name");
+  const sfEmail = document.getElementById("signup-email");
+  const sfPass = document.getElementById("signup-password");
+  const sfPass2 = document.getElementById("signup-confirm-password");
+
+  [lfEmail, lfPass, sfName, sfEmail, sfPass, sfPass2].forEach(el => {
+    if (el) {
+      el.value = "";
+    }
+  });
+};
+
+window.showSignupForm = function () {
+  const login = document.getElementById("login-form");
+  const signup = document.getElementById("signup-form");
+  if (!login || !signup) return;
+
+  login.classList.remove("active");
+  signup.classList.add("active");
+
+  const err = document.getElementById("login-error");
+  if (err) err.textContent = "";
+
+  resetAuthForms();
+};
+
+window.showLoginForm = function () {
+  const login = document.getElementById("login-form");
+  const signup = document.getElementById("signup-form");
+  if (!login || !signup) return;
+
+  signup.classList.remove("active");
+  login.classList.add("active");
+
+  const err = document.getElementById("signup-error");
+  if (err) err.textContent = "";
+
+  resetAuthForms();
+};
+
+// Toggle password visibility for inputs
+window.togglePassword = function (inputId) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  input.type = input.type === "password" ? "text" : "password";
+};
