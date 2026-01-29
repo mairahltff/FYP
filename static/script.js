@@ -28,7 +28,10 @@ function syncAuthUI() {
 // MAIN APP
 // =============================
 document.addEventListener("DOMContentLoaded", () => {
-  let currentUserId = (window.getCurrentUserId ? window.getCurrentUserId() : (window.currentUserId || "user"));
+  // Derive userId directly from Firebase auth; fallback to guest
+  let currentUserId = (window.auth && window.auth.currentUser && window.auth.currentUser.uid)
+    ? window.auth.currentUser.uid
+    : 'guest';
 
   // 🔐 Initial auth UI sync
   syncAuthUI();
@@ -369,8 +372,10 @@ document.addEventListener("DOMContentLoaded", () => {
   // -----------------------------
   // AUTH EVENT → ENABLE APP
   // -----------------------------
-  document.addEventListener("userChanged", () => {
-    currentUserId = (window.getCurrentUserId ? window.getCurrentUserId() : (window.currentUserId || "user"));
+  document.addEventListener("userChanged", (e) => {
+    // Prefer event-provided uid; else read from Firebase; fallback to guest
+    const uid = (e && e.detail && e.detail.userId) || (window.auth && window.auth.currentUser && window.auth.currentUser.uid);
+    currentUserId = uid || 'guest';
     syncAuthUI();
     // After sign in, show Home first
     showScreen("screen-home");
