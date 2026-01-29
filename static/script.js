@@ -377,6 +377,23 @@ document.addEventListener("DOMContentLoaded", () => {
     const uid = (e && e.detail && e.detail.userId) || (window.auth && window.auth.currentUser && window.auth.currentUser.uid);
     currentUserId = uid || 'guest';
     syncAuthUI();
+    // Reset chat panel so previous user's messages don't appear
+    const hc = document.getElementById('healthcare-messages');
+    if (hc) {
+      hc.innerHTML = '';
+      addMessage('healthcare', 'bot', 'Upload a document first, then ask your questions.');
+    }
+    // Clear any selected files in all chat forms
+    document.querySelectorAll('.chat-input-row input[type="file"]').forEach(inp => { try { inp.value = ''; } catch {} });
+    // Reset history list view; it will reload per user when opened
+    const hlist = document.querySelector('#screen-history .history-list');
+    if (hlist) {
+      hlist.innerHTML = '';
+      const empty = document.createElement('div');
+      empty.className = 'history-empty';
+      empty.textContent = 'No history yet.';
+      hlist.appendChild(empty);
+    }
     // After sign in, show Home first
     showScreen("screen-home");
     document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
