@@ -4,7 +4,9 @@ from datetime import datetime
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
+from werkzeug.exceptions import RequestEntityTooLarge
 from dotenv import load_dotenv
+import time
 
 # -----------------------------
 # Load environment
@@ -16,11 +18,16 @@ load_dotenv()
 # -----------------------------
 app = Flask(__name__)
 CORS(app)
+app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024  # 25 MB cap
+
+# Allowed file types for ingestion
+ALLOWED_EXTENSIONS = {"pdf", "docx", "pptx"}
 
 # -----------------------------
 # RAG engine
 # -----------------------------
-from FYP_RAG.rag_query_ibm import run_rag_query, ingest_local_document
+from FYP_RAG.rag_query_ibm import run_rag_query, ingest_document_docling, ingest_local_document
+from FYP_RAG.ibm_cos_storage import cos_enabled, upload_file_to_cos
 
 # -----------------------------
 # Paths & config
@@ -46,6 +53,17 @@ def init_db():
                 timestamp TEXT
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS perf_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT,
+                kind TEXT,
+                ref TEXT,
+                duration_ms INTEGER,
+                success INTEGER,
+                timestamp TEXT
+            )
+        """)
 
 # -----------------------------
 # Routes
@@ -64,16 +82,48 @@ def upload_docs():
         return jsonify(success=False, message="No file uploaded"), 400
 
     filename = secure_filename(file.filename)
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    if ext not in ALLOWED_EXTENSIONS:
+        return jsonify(success=False, message="Unsupported file type. Allowed: PDF, DOCX, PPTX"), 400
     user_dir = os.path.join(UPLOAD_FOLDER, user_id)
     os.makedirs(user_dir, exist_ok=True)
 
     path = os.path.join(user_dir, filename)
+    start = time.perf_counter()
     file.save(path)
 
     try:
-        ingest_local_document(user_id, path)
-        return jsonify(success=True, message="Successfully uploaded document")
+        # Prefer Docling ingestion with safe fallback
+        ingest_document_docling(user_id, path)
+        # Best-effort: upload original to IBM Cloud Object Storage if configured
+        cos_url = None
+        if cos_enabled():
+            try:
+                key = f"{user_id}/{filename}"
+                cos_url = upload_file_to_cos(path, key)
+            except Exception as cos_err:
+                # Log to console only; do not fail ingest if COS upload fails
+                print("⚠️ COS upload failed:", cos_err)
+        duration_ms = int((time.perf_counter() - start) * 1000)
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.execute(
+                """
+                INSERT INTO perf_logs (user_id, kind, ref, duration_ms, success, timestamp)
+                VALUES (?, 'ingest', ?, ?, 1, ?)
+                """,
+                (user_id, filename, duration_ms, datetime.now().isoformat(timespec="seconds"))
+            )
+        return jsonify(success=True, message="Successfully uploaded and ingested document", duration_ms=duration_ms, cos_url=cos_url)
     except Exception as e:
+        duration_ms = int((time.perf_counter() - start) * 1000)
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.execute(
+                """
+                INSERT INTO perf_logs (user_id, kind, ref, duration_ms, success, timestamp)
+                VALUES (?, 'ingest', ?, ?, 0, ?)
+                """,
+                (user_id, filename, duration_ms, datetime.now().isoformat(timespec="seconds"))
+            )
         return jsonify(success=False, message=str(e)), 500
 
 
@@ -87,7 +137,9 @@ def query_rag():
         return jsonify(success=False, answer="Empty query"), 400
 
     try:
+        start = time.perf_counter()
         result = run_rag_query(query, user_id)
+        duration_ms = int((time.perf_counter() - start) * 1000)
 
         with sqlite3.connect(DB_PATH) as conn:
             conn.execute(
@@ -104,15 +156,36 @@ def query_rag():
                     datetime.now().isoformat(timespec="seconds"),
                 )
             )
+            conn.execute(
+                """
+                INSERT INTO perf_logs (user_id, kind, ref, duration_ms, success, timestamp)
+                VALUES (?, 'query', ?, ?, 1, ?)
+                """,
+                (user_id, query[:200], duration_ms, datetime.now().isoformat(timespec="seconds"))
+            )
 
         return jsonify(
             success=True,
             answer=result["answer"],
             confidence=result["confidence"],
             sources=result["sources"],
+            retrieval=result.get("retrieval"),
+            duration_ms=duration_ms,
         )
 
     except Exception as e:
+        try:
+            duration_ms = int((time.perf_counter() - start) * 1000)
+            with sqlite3.connect(DB_PATH) as conn:
+                conn.execute(
+                    """
+                    INSERT INTO perf_logs (user_id, kind, ref, duration_ms, success, timestamp)
+                    VALUES (?, 'query', ?, ?, 0, ?)
+                    """,
+                    (user_id, query[:200], duration_ms, datetime.now().isoformat(timespec="seconds"))
+                )
+        except Exception:
+            pass
         return jsonify(
             success=False,
             answer="Internal error during RAG synthesis",
@@ -190,3 +263,7 @@ if __name__ == "__main__":
         debug=False,
         use_reloader=False
     )
+
+@app.errorhandler(RequestEntityTooLarge)
+def handle_large_file(e):
+    return jsonify(success=False, message="File too large. Max 25 MB."), 413

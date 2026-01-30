@@ -5,6 +5,13 @@ from typing import Dict, List
 from pathlib import Path
 from dotenv import load_dotenv
 import PyPDF2
+import chromadb
+from chromadb.errors import ChromaError
+from chromadb.utils import embedding_functions
+try:
+    import docling
+except Exception:
+    docling = None
 
 load_dotenv(dotenv_path=Path(__file__).resolve().parents[1] / ".env")
 
@@ -21,6 +28,30 @@ STOPWORDS = {
     "by","as","at","from","it","its","their","there","here","such","can","may","might","should",
     "must","could","will","would","do","does","did","not","no","yes","about","into","within","between",
 }
+
+
+# -----------------------------
+# Chroma setup + IBM Embeddings
+# -----------------------------
+def _get_vectorstore_path() -> str:
+    return str(Path(__file__).resolve().parents[1] / "vectorstore")
+
+
+def get_chroma_collection(user_id: str):
+    client = chromadb.PersistentClient(path=_get_vectorstore_path())
+    # Use local sentence-transformers embeddings (offline-friendly)
+    emb_model = os.getenv("SENTENCE_TRANSFORMER_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
+    emb_fn = None
+    try:
+        emb_fn = embedding_functions.SentenceTransformerEmbeddingFunction(model_name=emb_model)
+        print(f"✅ Using local embeddings: {emb_model}")
+    except Exception as e:
+        print("⚠️ SentenceTransformer embeddings unavailable; proceeding without embedding function:", e)
+    return client.get_or_create_collection(
+        name=f"user_{user_id}",
+        metadata={"hnsw:space": "cosine"},
+        embedding_function=emb_fn,
+    )
 
 
 # -----------------------------
@@ -64,6 +95,86 @@ def ingest_local_document(user_id: str, filepath: str):
 
     LOCAL_INDEX.setdefault(user_id, []).extend(chunks)
 
+    # Also add to Chroma for vector retrieval (best-effort; fall back if embeddings unavailable)
+    try:
+        col = get_chroma_collection(user_id)
+        ids = []
+        docs = []
+        metas = []
+        for c in chunks:
+            ids.append(f"{filename}_p{c['page']}_c{c['chunk']}")
+            docs.append(c["text"])
+            metas.append({"source": filename, "page": c["page"], "chunk": c["chunk"]})
+        if docs:
+            col.add(ids=ids, documents=docs, metadatas=metas)
+    except Exception as e:
+        print("⚠️ Chroma ingest failed (falling back to LOCAL_INDEX only):", e)
+
+
+# -----------------------------
+# Docling ingestion (best-effort)
+# -----------------------------
+def ingest_document_docling(user_id: str, filepath: str):
+    """
+    Prefer Docling for robust parsing + chunking if available;
+    fallback to PyPDF2-based ingestion otherwise.
+    """
+    if docling is None:
+        print("ℹ️ Docling not available, using PyPDF2 ingestion.")
+        return ingest_local_document(user_id, filepath)
+
+    filename = os.path.basename(filepath)
+    chunks = []
+    try:
+        # Docling API varies; attempt generic pipeline and fallback on error
+        # Use docling.parse to extract text segments, if supported
+        from docling_parse import Parser  # type: ignore
+        parser = Parser()
+        doc = parser.parse(filepath)
+        texts = []
+        try:
+            # Collect paragraphs or segments (best-effort)
+            texts = [seg.text for seg in getattr(doc, "segments", []) if getattr(seg, "text", "")]  # type: ignore
+        except Exception:
+            pass
+        if not texts:
+            # Fallback: use PyPDF2 path
+            print("ℹ️ Docling parse returned no segments, falling back to PyPDF2.")
+            return ingest_local_document(user_id, filepath)
+
+        # Group texts into blocks of ~4 segments
+        for i in range(0, len(texts), 4):
+            block = clean_text(" ".join(texts[i:i+4]))
+            if not block:
+                continue
+            chunks.append({
+                "source": filename,
+                "page": 0,
+                "chunk": (i // 4) + 1,
+                "text": block,
+                "tokens": tokenize(block),
+            })
+    except Exception as e:
+        print("⚠️ Docling ingestion failed, using PyPDF2:", e)
+        return ingest_local_document(user_id, filepath)
+
+    LOCAL_INDEX.setdefault(user_id, []).extend(chunks)
+
+    # Sync into Chroma
+    try:
+        col = get_chroma_collection(user_id)
+        ids = []
+        docs = []
+        metas = []
+        for c in chunks:
+            ids.append(f"{filename}_p{c['page']}_c{c['chunk']}")
+            docs.append(c["text"])
+            metas.append({"source": filename, "page": c["page"], "chunk": c["chunk"]})
+        if docs:
+            col.add(ids=ids, documents=docs, metadatas=metas)
+    except Exception as e:
+        print("⚠️ Chroma ingest failed (Docling path):", e)
+
 
 # -----------------------------
 # Watsonx / Granite
@@ -104,14 +215,15 @@ def call_granite(question: str, context: str) -> str:
         "messages": [
             {
                 "role": "system",
-                "content": (
-                     "You are a strict academic research assistant. "
-                     "Use ONLY the provided context to answer. If the required information is not fully present in the context, respond exactly: 'Insufficient information in provided context.' "
-                     "Answer ONLY what is asked — do not add background, definitions, speculation, projections, or unrelated statistics. "
-                     "Write ONE concise academic paragraph (2–3 sentences maximum) in neutral tone. "
-                     "Do NOT invent facts. Do NOT paraphrase beyond the context. Do NOT include dates outside the question’s timeframe. "
-                     "Do NOT include citations, references, section numbers, or bullet points."
-                )
+                 "content": (
+                     "You are an academic assistant. "
+                     "Use only the provided context to answer. "
+                     "If the context does not fully support the answer, reply exactly: 'Insufficient information in provided context.' "
+                     "Answer only what is asked, in 1–3 complete sentences. "
+                     "Do not add background, opinions, predictions, or unrelated details. "
+                     "Do not invent facts or numbers; prefer wording from the context. "
+                     "Respect any timeframe or scope stated in the question."
+                 )
             },
             {
                 "role": "user",
@@ -209,25 +321,45 @@ def extractive_fallback(top, q_tokens):
 # -----------------------------
 def run_rag_query(query: str, user_id: str):
     q_tokens = tokenize(query)
-    docs = LOCAL_INDEX.get(user_id, [])
 
-    scored = []
-    for d in docs:
-        score = len(q_tokens & d["tokens"]) / max(len(q_tokens), 1)
-        if score > 0.1:
-            scored.append((score, d))
+    top = []
+    context = ""
+    retrieval_method = "fallback-token"
+    # First try: Chroma similarity search
+    try:
+        col = get_chroma_collection(user_id)
+        results = col.query(query_texts=[query], n_results=5, include=["documents", "metadatas", "distances"])
+        docs = results.get("documents", [[]])[0]
+        metas = results.get("metadatas", [[]])[0]
+        dists = results.get("distances", [[]])[0]
+        # Convert distances to similarity (cosine space)
+        for doc, meta, dist in zip(docs, metas, dists):
+            sim = 1.0 - float(dist)
+            top.append((sim, {"text": doc, "source": meta.get("source"), "page": meta.get("page"), "chunk": meta.get("chunk")}))
+        top.sort(key=lambda x: x[0], reverse=True)
+        context = " ".join(d["text"] for _, d in top)[:6000]
+        retrieval_method = "vector"
+    except (ChromaError, Exception) as e:
+        print("⚠️ Chroma query failed, falling back to token overlap:", e)
+        # Fallback: token overlap over LOCAL_INDEX
+        docs = LOCAL_INDEX.get(user_id, [])
+        scored = []
+        for d in docs:
+            score = len(q_tokens & d["tokens"]) / max(len(q_tokens), 1)
+            if score > 0.1:
+                scored.append((score, d))
+        if scored:
+            scored.sort(key=lambda x: x[0], reverse=True)
+            top = scored[:5]
+            context = " ".join(d["text"] for _, d in top)[:6000]
 
-    if not scored:
+    if not top:
         return {
             "answer": "No relevant information found in the uploaded document.",
             "confidence": "Low (0.00)",
             "sources": [],
+            "retrieval": retrieval_method,
         }
-
-    scored.sort(key=lambda x: x[0], reverse=True)
-    top = scored[:5]
-
-    context = " ".join(d["text"] for _, d in top)[:6000]
 
     try:
         answer = call_granite(query, context)
@@ -253,4 +385,5 @@ def run_rag_query(query: str, user_id: str):
         "answer": answer,
         "confidence": f"{label} ({avg:.2f})",
         "sources": sources,
+        "retrieval": retrieval_method,
     }

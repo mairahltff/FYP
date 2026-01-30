@@ -12,6 +12,9 @@ venv/
 # Runtime uploads
 uploads/
 
+# Vector store persistence
+vectorstore/
+
 # Database
 database.db
 
