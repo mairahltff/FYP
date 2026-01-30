@@ -5,9 +5,15 @@ PyPDF2==3.0.1
 requests>=2.32.2,<3
 gunicorn==21.2.0
 Werkzeug==2.3.7
+
 langchain==0.2.14
 langchain-community==0.2.12
-chromadb==0.5.3
+
+# RAG + embeddings
+chromadb==0.4.24
+sentence-transformers==2.6.1
+numpy==1.26.4
+
+# IBM
 docling==2.70.0
 ibm-watsonx-ai==1.0.5
-sentence-transformers==2.6.1
