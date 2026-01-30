@@ -9,8 +9,8 @@ Werkzeug==2.3.7
 langchain==0.2.14
 langchain-community==0.2.12
 
-# RAG + embeddings (CPU only for Heroku)
-torch==2.1.2+cpu
+# RAG + embeddings (CPU torch)
+torch==2.1.2
 sentence-transformers==2.6.1
 chromadb==0.4.24
 numpy==1.26.4
