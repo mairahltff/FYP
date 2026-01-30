@@ -6,13 +6,21 @@ from flask_cors import CORS
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 
-# RAG engine
-from FYP_RAG.rag_query_ibm import run_rag_query, ingest_local_document
-
+# -----------------------------
+# Load environment
+# -----------------------------
 load_dotenv()
 
+# -----------------------------
+# Flask app
+# -----------------------------
 app = Flask(__name__)
 CORS(app)
+
+# -----------------------------
+# RAG engine
+# -----------------------------
+from FYP_RAG.rag_query_ibm import run_rag_query, ingest_local_document
 
 # -----------------------------
 # Paths & config
@@ -35,7 +43,7 @@ def init_db():
                 query TEXT,
                 answer TEXT,
                 confidence TEXT,
-                timestamp DATETIME
+                timestamp TEXT
             )
         """)
 
@@ -46,16 +54,14 @@ def init_db():
 def index():
     return render_template("index.html")
 
+
 @app.route("/upload_docs", methods=["POST"])
 def upload_docs():
-    if "file" not in request.files:
-        return jsonify(success=False, message="No file uploaded"), 400
-
-    file = request.files["file"]
+    file = request.files.get("file")
     user_id = request.form.get("user_id", "guest")
 
-    if file.filename == "":
-        return jsonify(success=False, message="Empty filename"), 400
+    if not file or file.filename == "":
+        return jsonify(success=False, message="No file uploaded"), 400
 
     filename = secure_filename(file.filename)
     user_dir = os.path.join(UPLOAD_FOLDER, user_id)
@@ -66,19 +72,14 @@ def upload_docs():
 
     try:
         ingest_local_document(user_id, path)
-        return jsonify(
-            success=True,
-            message="Successfully uploaded document"
-        )
+        return jsonify(success=True, message="Successfully uploaded document")
     except Exception as e:
-        app.logger.exception("Upload / ingest failed")
         return jsonify(success=False, message=str(e)), 500
 
 
 @app.route("/query_rag", methods=["POST"])
 def query_rag():
     data = request.get_json(silent=True) or {}
-
     query = data.get("query", "").strip()
     user_id = data.get("user_id", "guest")
 
@@ -88,11 +89,10 @@ def query_rag():
     try:
         result = run_rag_query(query, user_id)
 
-        # Log for FYP evaluation
         with sqlite3.connect(DB_PATH) as conn:
             conn.execute(
                 """
-                INSERT INTO query_logs 
+                INSERT INTO query_logs
                 (user_id, query, answer, confidence, timestamp)
                 VALUES (?, ?, ?, ?, ?)
                 """,
@@ -101,11 +101,10 @@ def query_rag():
                     query,
                     result["answer"],
                     result["confidence"],
-                    datetime.now(),
+                    datetime.now().isoformat(timespec="seconds"),
                 )
             )
 
-        # 🔑 IMPORTANT: return RAW DATA ONLY (no HTML)
         return jsonify(
             success=True,
             answer=result["answer"],
@@ -114,7 +113,6 @@ def query_rag():
         )
 
     except Exception as e:
-        app.logger.exception("RAG query failed")
         return jsonify(
             success=False,
             answer="Internal error during RAG synthesis",
@@ -124,43 +122,29 @@ def query_rag():
 
 @app.route("/history", methods=["GET"])
 def history():
-    """Return past conversations for the given user_id.
-    Does not touch RAG; reads from existing SQLite logs.
-    """
     user_id = request.args.get("user_id", "guest")
-    try:
-        with sqlite3.connect(DB_PATH) as conn:
-            conn.row_factory = sqlite3.Row
-            rows = conn.execute(
-                """
-                SELECT id, query, answer, confidence, timestamp
-                FROM query_logs
-                WHERE user_id = ?
-                ORDER BY timestamp DESC
-                LIMIT 100
-                """,
-                (user_id,),
-            ).fetchall()
 
-        history = [
-            {
-                "id": r["id"],
-                "query": r["query"],
-                "answer": r["answer"],
-                "confidence": r["confidence"],
-                "timestamp": r["timestamp"],
-            }
-            for r in rows
-        ]
-        return jsonify(success=True, history=history)
-    except Exception as e:
-        app.logger.exception("Fetch history failed")
-        return jsonify(success=False, error=str(e)), 500
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            """
+            SELECT id, query, answer, confidence, timestamp
+            FROM query_logs
+            WHERE user_id = ?
+            ORDER BY timestamp DESC
+            LIMIT 100
+            """,
+            (user_id,),
+        ).fetchall()
+
+    return jsonify(
+        success=True,
+        history=[dict(row) for row in rows]
+    )
 
 
 @app.route("/history/delete", methods=["POST"])
 def history_delete():
-    """Delete a single history item by id for the given user."""
     data = request.get_json(silent=True) or {}
     item_id = data.get("id")
     user_id = data.get("user_id", "guest")
@@ -168,40 +152,41 @@ def history_delete():
     if not item_id:
         return jsonify(success=False, message="Missing id"), 400
 
-    try:
-        with sqlite3.connect(DB_PATH) as conn:
-            cur = conn.execute(
-                "DELETE FROM query_logs WHERE id = ? AND user_id = ?",
-                (item_id, user_id),
-            )
-        return jsonify(success=True, deleted=cur.rowcount)
-    except Exception as e:
-        app.logger.exception("Delete history item failed")
-        return jsonify(success=False, error=str(e)), 500
+    with sqlite3.connect(DB_PATH) as conn:
+        cur = conn.execute(
+            "DELETE FROM query_logs WHERE id = ? AND user_id = ?",
+            (item_id, user_id),
+        )
+
+    return jsonify(success=True, deleted=cur.rowcount)
 
 
 @app.route("/history/clear", methods=["POST"])
 def history_clear():
-    """Delete all history items for the given user."""
     data = request.get_json(silent=True) or {}
     user_id = data.get("user_id", "guest")
-    try:
-        with sqlite3.connect(DB_PATH) as conn:
-            cur = conn.execute(
-                "DELETE FROM query_logs WHERE user_id = ?",
-                (user_id,),
-            )
-        return jsonify(success=True, deleted=cur.rowcount)
-    except Exception as e:
-        app.logger.exception("Clear history failed")
-        return jsonify(success=False, error=str(e)), 500
 
+    with sqlite3.connect(DB_PATH) as conn:
+        cur = conn.execute(
+            "DELETE FROM query_logs WHERE user_id = ?",
+            (user_id,),
+        )
+
+    return jsonify(success=True, deleted=cur.rowcount)
 
 # -----------------------------
-# Main
+# Main (CRITICAL FIX HERE)
 # -----------------------------
 if __name__ == "__main__":
     init_db()
-    port = int(os.environ.get("PORT", 5001))
-    print(f"🔥 Flask running on port {port}")
-    app.run(host="0.0.0.0", port=port, debug=False)
+    print("🔥 Flask running on port 5001")
+
+    # 🚨 IMPORTANT:
+    # use_reloader=False prevents Flask from running TWO processes
+    # which was wiping your in-memory RAG index
+    app.run(
+        host="0.0.0.0",
+        port=5001,
+        debug=False,
+        use_reloader=False
+    )
