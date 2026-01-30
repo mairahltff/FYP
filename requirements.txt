@@ -9,11 +9,9 @@ Werkzeug==2.3.7
 langchain==0.2.14
 langchain-community==0.2.12
 
-# RAG + embeddings (Heroku-safe)
-torch==2.1.2
-sentence-transformers==2.6.1
+# Vector DB only (no embeddings computed here)
 chromadb==0.4.24
 numpy==1.26.4
 
-# IBM (optional – keep only if used at runtime)
+# IBM
 ibm-watsonx-ai==1.0.5
